@@ -26,7 +26,7 @@ export const LOW_LEADS_THRESHOLD = 50;
 export const LEAD_TO_VISIT_HEALTHY = 0.2;
 export const VISIT_TO_SALE_HEALTHY = 0.2;
 
-export const WHATSAPP_GROUP_URL = "https://chat.whatsapp.com/SEU-LINK-AQUI";
+export const WHATSAPP_GROUP_URL = "https://chat.whatsapp.com/Cn2VWBtUgEw0ZrIyCh2JBZ";
 
 // Data/horário da próxima aula ao vivo. Deixe em branco para ocultar essa
 // linha no CTA (ex.: enquanto a próxima turma ainda não está agendada).
