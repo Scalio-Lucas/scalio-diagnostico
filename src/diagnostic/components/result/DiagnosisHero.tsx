@@ -1,20 +1,11 @@
 import { m } from "framer-motion";
-import { formatBRLAbbrev, formatPercent } from "../../engine/format";
-import type { CurrentMetrics, Diagnostic, ProjectedMetrics } from "../../engine/types";
+import { formatBRLAbbrev } from "../../engine/format";
+import type { Diagnostic } from "../../engine/types";
 import { useCountUp } from "./useCountUp";
 
 /** BLOCO 1 — primeira dobra enxuta: só o resultado, sem métricas secundárias. */
-export function DiagnosisHero({
-  diagnostic,
-  current,
-  projected,
-}: {
-  diagnostic: Diagnostic;
-  current: CurrentMetrics;
-  projected: ProjectedMetrics;
-}) {
-  const hasOpportunity = projected.hasProjectableSales && projected.opportunityVGV > 0;
-  const animated = useCountUp(hasOpportunity ? projected.opportunityVGV : 0, 1100);
+export function DiagnosisHero({ diagnostic }: { diagnostic: Diagnostic }) {
+  const animated = useCountUp(diagnostic.hasOpportunity ? diagnostic.opportunityVGV : 0, 1100);
 
   return (
     <m.section
@@ -27,7 +18,7 @@ export function DiagnosisHero({
         Seu diagnóstico
       </p>
 
-      {hasOpportunity ? (
+      {diagnostic.hasOpportunity ? (
         <>
           <p className="mt-3 text-sm text-muted-foreground">
             Com os números informados, existe uma oportunidade estimada de:
@@ -37,11 +28,10 @@ export function DiagnosisHero({
           </p>
           <p className="text-sm font-medium text-muted-foreground">em VGV potencial por mês</p>
           <p className="mx-auto mt-3 max-w-sm text-sm text-muted-foreground">
-            Sem aumentar sua quantidade atual de leads.
+            {diagnostic.constantLine}
           </p>
           <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground/80">
-            Sua taxa de Lead → Visita hoje é {formatPercent(current.leadToVisit, 1)}. Neste cenário,
-            simulamos {formatPercent(projected.leadToVisitProjected, 1)}.
+            {diagnostic.contextLine}
           </p>
         </>
       ) : (

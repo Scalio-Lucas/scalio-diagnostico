@@ -2,11 +2,12 @@ import { useMemo } from "react";
 import { SCENARIOS, SIMULATOR_ABSOLUTE_CEILING, SIMULATOR_DEFAULT_CEILING } from "../config";
 import { buildDiagnostic, pickInitialScenario } from "../engine/diagnosticEngine";
 import { computeCurrentMetrics } from "../engine/metrics";
+import { analyzeOpportunities, buildStageComparison } from "../engine/opportunityEngine";
 import { computeProjection } from "../engine/scenarios";
 import type { FunnelInputs, ScenarioKey } from "../engine/types";
 import { useDiagnostic } from "./DiagnosticContext";
 
-/** Pipeline completo Input -> Metrics -> Scenario -> Diagnostic, memoizado. */
+/** Pipeline completo Input -> Metrics -> Opportunity -> Diagnostic, memoizado. */
 export function useDiagnosticComputation(overrideRate?: number) {
   const { state } = useDiagnostic();
   return useComputationFor(state.inputs, overrideRate);
@@ -15,6 +16,16 @@ export function useDiagnosticComputation(overrideRate?: number) {
 export function useComputationFor(inputs: FunnelInputs, overrideRate?: number) {
   return useMemo(() => {
     const current = computeCurrentMetrics(inputs);
+
+    // Opportunity Engine — analisa TODAS as etapas do funil e decide onde
+    // está a maior oportunidade incremental de VGV (não força Lead→Visita).
+    const opportunities = analyzeOpportunities(inputs, current);
+    const comparison = buildStageComparison(inputs, current, opportunities);
+    const diagnostic = buildDiagnostic(inputs, current, opportunities, comparison);
+
+    // Simulador compacto (BLOCO 3 / "Ver diagnóstico completo") continua
+    // simulando especificamente Lead→Visita, como já aprovado — independente
+    // de qual etapa o Opportunity Engine aponta como gargalo principal.
     const initialScenario: ScenarioKey = pickInitialScenario(current);
     const rate =
       overrideRate ??
@@ -25,7 +36,6 @@ export function useComputationFor(inputs: FunnelInputs, overrideRate?: number) {
       rate,
       overrideRate !== undefined ? "custom" : initialScenario,
     );
-    const diagnostic = buildDiagnostic(inputs, current, projected);
 
     const simulatorMin = current.leadToVisit;
     const simulatorMax = Math.min(
@@ -33,6 +43,15 @@ export function useComputationFor(inputs: FunnelInputs, overrideRate?: number) {
       SIMULATOR_ABSOLUTE_CEILING,
     );
 
-    return { current, projected, diagnostic, initialScenario, simulatorMin, simulatorMax };
+    return {
+      current,
+      opportunities,
+      comparison,
+      diagnostic,
+      projected,
+      initialScenario,
+      simulatorMin,
+      simulatorMax,
+    };
   }, [inputs, overrideRate]);
 }

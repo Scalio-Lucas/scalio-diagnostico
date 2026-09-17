@@ -1,9 +1,10 @@
-import { formatPercent, formatSignedBRLAbbrev } from "../../engine/format";
+import { formatSignedBRLAbbrev } from "../../engine/format";
 import { MiniBarCompare } from "./MiniBarCompare";
 
 interface ComparisonConnectorProps {
-  currentRate: number;
-  projectedRate: number;
+  /** Já formatado pelo chamador — pode ser "4,1%" ou "R$ 250" (CPL). */
+  beforeLabel: string;
+  afterLabel: string;
   opportunityVGV: number;
   hasOpportunity: boolean;
   currentVGV: number;
@@ -12,8 +13,8 @@ interface ComparisonConnectorProps {
 
 /** Elemento entre os dois cards: a leitura "5,7% → 10% = +R$2,2M" de relance. */
 export function ComparisonConnector({
-  currentRate,
-  projectedRate,
+  beforeLabel,
+  afterLabel,
   opportunityVGV,
   hasOpportunity,
   currentVGV,
@@ -22,13 +23,11 @@ export function ComparisonConnector({
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-2">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <span className="text-muted-foreground">{formatPercent(currentRate, 1)}</span>
+        <span className="text-muted-foreground">{beforeLabel}</span>
         <span aria-hidden className="text-[color:var(--electric-bright)]">
           →
         </span>
-        <span className="text-[color:var(--electric-bright)]">
-          {formatPercent(projectedRate, 1)}
-        </span>
+        <span className="text-[color:var(--electric-bright)]">{afterLabel}</span>
       </div>
 
       {hasOpportunity ? (

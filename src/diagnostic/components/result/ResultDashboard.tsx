@@ -32,13 +32,16 @@ export function ResultDashboard() {
 
   const simulatorRate = state.simulatorRate ?? base.projected.leadToVisitProjected;
   const live = useComputationFor(inputs, simulatorRate);
-  const { current, projected, diagnostic } = live;
+  const { current, opportunities, comparison, diagnostic } = live;
 
-  // Caso E (sem histórico de vendas): sem comparação nem simulador, só o que os dados permitem.
-  if (!current.hasSales) {
+  // O Opportunity Engine só devolve uma comparação Hoje×Cenário quando o
+  // gargalo principal é uma etapa isolável (investimento→leads, lead→visita
+  // ou visita→venda). Sem vendas, sem visitas, sem leads, ou quando nenhuma
+  // etapa se destaca (volume/funil equilibrado), mostramos só o funil atual.
+  if (!comparison) {
     return (
       <div className="mx-auto max-w-md px-5 pb-16">
-        <DiagnosisHero diagnostic={diagnostic} current={current} projected={projected} />
+        <DiagnosisHero diagnostic={diagnostic} />
 
         <div className="mt-8">
           <ScenarioCard
@@ -47,10 +50,10 @@ export function ResultDashboard() {
             visitsValue={formatInt(inputs.visits)}
             visitsCaption={pluralize(inputs.visits, "visita", "visitas")}
             leadToVisitRate={current.leadToVisit}
-            salesValue="0"
-            salesCaption="vendas"
-            visitToSaleRate={0}
-            vgv={0}
+            salesValue={formatInt(inputs.sales)}
+            salesCaption={pluralize(inputs.sales, "venda", "vendas")}
+            visitToSaleRate={current.visitToSale}
+            vgv={current.vgv}
             vgvCaption="VGV"
             accent="current"
           />
@@ -60,7 +63,20 @@ export function ResultDashboard() {
 
         <CTASection />
 
-        <div className="mt-6">
+        <div className="mt-6 space-y-3">
+          {current.hasSales ? (
+            <SecondaryDiagnosticSection
+              diagnostic={diagnostic}
+              inputs={inputs}
+              current={current}
+              opportunities={opportunities}
+              projected={live.projected}
+              simulatorRate={simulatorRate}
+              simulatorMin={live.simulatorMin}
+              simulatorMax={live.simulatorMax}
+              onSimulatorChange={setSimulatorRate}
+            />
+          ) : null}
           <HowWeCalculate />
         </div>
 
@@ -72,11 +88,11 @@ export function ResultDashboard() {
   return (
     <div className="mx-auto max-w-4xl px-5 pb-16">
       {/* BLOCO 1 */}
-      <DiagnosisHero diagnostic={diagnostic} current={current} projected={projected} />
+      <DiagnosisHero diagnostic={diagnostic} />
 
-      {/* BLOCO 2 */}
+      {/* BLOCO 2 — dinâmico: mostra a etapa que o motor apontou como gargalo */}
       <div className="mt-10">
-        <ImpactComparison inputs={inputs} current={current} projected={projected} />
+        <ImpactComparison comparison={comparison} diagnostic={diagnostic} />
       </div>
 
       <ArrowDivider />
@@ -88,8 +104,10 @@ export function ResultDashboard() {
       <div className="mt-8 space-y-3">
         <SecondaryDiagnosticSection
           diagnostic={diagnostic}
+          inputs={inputs}
           current={current}
-          projected={projected}
+          opportunities={opportunities}
+          projected={live.projected}
           simulatorRate={simulatorRate}
           simulatorMin={live.simulatorMin}
           simulatorMax={live.simulatorMax}

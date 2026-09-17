@@ -4,13 +4,21 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import type { CurrentMetrics, Diagnostic, ProjectedMetrics } from "../../engine/types";
+import type {
+  CurrentMetrics,
+  Diagnostic,
+  FunnelInputs,
+  OpportunityAnalysis,
+  ProjectedMetrics,
+} from "../../engine/types";
 import { DiagnosticDetailsRows } from "./DiagnosticDetailsRows";
 import { SimulatorPanel } from "./SimulatorPanel";
 
 interface SecondaryDiagnosticSectionProps {
   diagnostic: Diagnostic;
+  inputs: FunnelInputs;
   current: CurrentMetrics;
+  opportunities: OpportunityAnalysis;
   projected: ProjectedMetrics;
   simulatorRate: number;
   simulatorMin: number;
@@ -25,7 +33,9 @@ interface SecondaryDiagnosticSectionProps {
  */
 export function SecondaryDiagnosticSection({
   diagnostic,
+  inputs,
   current,
+  opportunities,
   projected,
   simulatorRate,
   simulatorMin,
@@ -51,7 +61,11 @@ export function SecondaryDiagnosticSection({
               vgvPotential={projected.vgvPotential}
             />
 
-            <DiagnosticDetailsRows current={current} projected={projected} />
+            <DiagnosticDetailsRows
+              inputs={inputs}
+              current={current}
+              opportunities={opportunities}
+            />
 
             {diagnostic.diagnosticText ? (
               <div className="border-t border-[color:var(--color-border)] pt-4">
