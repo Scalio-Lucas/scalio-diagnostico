@@ -56,28 +56,29 @@ export interface ProjectedMetrics {
   opportunityRevenue: number;
 }
 
-/** Uma etapa do funil que o Opportunity Engine sabe isolar e comparar. */
-export type StageKey = "leadGeneration" | "leadToVisit" | "visitToSale";
+/** Qual variável mudou no cenário escolhido como "simulado" — só para a UI
+ * decidir formatação (CPL em R$ vs. taxa em %) reaproveitando os mesmos
+ * componentes visuais de sempre. */
+export type StageKey = "leadGeneration" | "leadToVisit";
 
 /** Qual etapa (ou ausência de etapa) o diagnóstico aponta como gargalo. */
-export type BottleneckId = StageKey | "volume" | "balanced";
+export type BottleneckId = StageKey | "balanced";
 
 /**
  * Classificação de alto nível do diagnóstico — determina qual copy/layout o
- * resultado usa. Ver seções 12, 18-21 do briefing do Opportunity Engine.
+ * resultado usa.
  */
 export type DiagnosticType =
   | "no_leads"
   | "no_visits"
   | "no_sales_history"
-  | "single_bottleneck"
-  | "multiple_bottlenecks"
-  | "volume_limited"
-  | "no_obvious_bottleneck";
+  | "acquisition_opportunity" // Cenário C bate A e B: vale normalizar aquisição
+  | "conversion_opportunity" // Cenário B bate A (C não soma nada além de B)
+  | "already_efficient"; // Nenhum cenário simulado supera o atual
 
 /**
- * Quão confiável é a taxa observada, dado o tamanho da amostra que a gerou
- * (seção 17). Nunca exibido literalmente ao usuário — só amacia o texto.
+ * Quão confiável é a taxa observada, dado o tamanho da amostra que a gerou.
+ * Nunca exibido literalmente ao usuário — só amacia o texto.
  */
 export type SampleConfidence =
   "low_sample" | "usable_sample" | "stronger_sample" | "not_applicable";
@@ -90,34 +91,33 @@ export interface FunnelSnapshot {
 }
 
 /**
- * Resultado de isolar UMA etapa do funil: todo o resto (investimento, as
- * outras taxas) permanece nos valores atuais — nunca soma melhorias (seção 13).
+ * Um cenário completo da cadeia Investimento→CPL→Leads→Visitas→Vendas→VGV.
+ * `cpl` e `leadToVisit` variam por cenário; `visitToSale` é SEMPRE a taxa
+ * real informada pelo usuário — não existe referência configurada pra ela.
  */
-export interface StageOpportunity {
-  eligible: boolean;
-  confidence: SampleConfidence;
-  /** CPL (R$) para leadGeneration; taxa 0-1 para leadToVisit/visitToSale. */
-  currentValue: number;
-  referenceValue: number;
-  /** true quando o valor atual já é igual ou melhor que a referência. */
-  isAboveReference: boolean;
-  today: FunnelSnapshot;
-  scenario: FunnelSnapshot;
-  incrementalVGV: number;
+export interface ScenarioResult {
+  /** null = CPL não calculável (investimento ou leads = 0). */
+  cpl: number | null;
+  leadToVisit: number;
+  visitToSale: number;
+  leads: number;
+  visits: number;
+  sales: number;
+  vgv: number;
 }
 
-export interface VolumeAssessment {
-  status: "limited" | "adequate";
-}
-
-/** Saída do Opportunity Engine — análise das 3 etapas + veredito. */
+/** Saída do Scenario Engine — os 3 cenários (A/B/C) + veredito honesto. */
 export interface OpportunityAnalysis {
-  leadGeneration: StageOpportunity;
-  leadToVisit: StageOpportunity;
-  visitToSale: StageOpportunity;
-  volume: VolumeAssessment;
-  primaryBottleneck: BottleneckId | null;
-  secondaryBottleneck: BottleneckId | null;
+  scenarioA: ScenarioResult;
+  scenarioB: ScenarioResult;
+  scenarioC: ScenarioResult;
+  /** Só existe quando CPL está anormalmente baixo E Lead→Visita abaixo da
+   * referência — explica o trade-off volume-barato vs. qualidade-de-referência,
+   * nunca é apresentado como o cenário recomendado. */
+  qualityNormalization: ScenarioResult | null;
+  /** Qual cenário é matematicamente o melhor entre A/B/C. */
+  recommended: "A" | "B" | "C";
+  leadToVisitConfidence: SampleConfidence;
   diagnosticType: DiagnosticType;
 }
 
@@ -143,7 +143,6 @@ export interface StageComparison {
 export interface Diagnostic {
   diagnosticType: DiagnosticType;
   primaryBottleneck: BottleneckId | null;
-  secondaryBottleneck: BottleneckId | null;
   hasOpportunity: boolean;
   opportunityVGV: number;
   /** Linha de fallback do BLOCO 1 quando não há oportunidade a destacar. */

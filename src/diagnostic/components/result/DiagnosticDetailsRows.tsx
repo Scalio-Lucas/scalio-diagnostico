@@ -1,16 +1,10 @@
-import type { ReactNode } from "react";
-import { MEANINGFUL_OPPORTUNITY_VGV } from "../../config";
-import {
-  formatBRL,
-  formatBRLAbbrev,
-  formatPercent,
-  formatSignedBRLAbbrev,
-} from "../../engine/format";
+import { DIAGNOSTIC_REFERENCES } from "../../config";
+import { formatBRL, formatBRLAbbrev, formatDecimalValue, formatPercent } from "../../engine/format";
 import type {
   CurrentMetrics,
   FunnelInputs,
   OpportunityAnalysis,
-  StageOpportunity,
+  ScenarioResult,
 } from "../../engine/types";
 
 interface DiagnosticDetailsRowsProps {
@@ -20,52 +14,68 @@ interface DiagnosticDetailsRowsProps {
 }
 
 /**
- * Quebra completa por etapa (seção 32) — investimento→leads, leads→visitas,
- * visitas→vendas e vendas→VGV, cada uma com seu próprio status. A comissão
- * nunca aparece aqui como candidata a gargalo, só como variável financeira.
+ * Mostra a cadeia completa (Investimento→CPL→Leads→Lead→Visita→Visitas→
+ * Visita→Venda→Vendas→VGV) do cenário atual e, quando houver, do cenário
+ * simulado — para não esconder de onde vem nenhum número (seção "não mostrar
+ * apenas o resultado final"). A comissão nunca aparece como possível gargalo,
+ * só como variável financeira na receita bruta estimada.
  */
 export function DiagnosticDetailsRows({
   inputs,
   current,
   opportunities,
 }: DiagnosticDetailsRowsProps) {
+  const { scenarioA, qualityNormalization, recommended } = opportunities;
+  const winner = recommended === "C" ? opportunities.scenarioC : opportunities.scenarioB;
+  const winnerLabel =
+    recommended === "C"
+      ? "Cenário simulado — aquisição e conversão de referência"
+      : "Cenário simulado — mesma aquisição, conversão de referência";
+
   return (
     <div className="space-y-4">
-      <StageSection title="Investimento → Leads" opportunity={opportunities.leadGeneration}>
-        <Row label="CPL atual" value={formatBRL(opportunities.leadGeneration.currentValue)} />
-        <Row
-          label="Cenário de referência"
-          value={`${formatBRL(opportunities.leadGeneration.referenceValue)}/lead`}
-        />
-      </StageSection>
+      <ScenarioChain title="Cenário atual" scenario={scenarioA} />
 
-      <StageSection title="Leads → Visitas" opportunity={opportunities.leadToVisit}>
-        <Row label="Taxa atual" value={formatPercent(opportunities.leadToVisit.currentValue, 1)} />
-        <Row
-          label="Cenário de referência"
-          value={formatPercent(opportunities.leadToVisit.referenceValue, 1)}
-        />
-      </StageSection>
+      {recommended !== "A" ? (
+        <ScenarioChain title={winnerLabel} scenario={winner} highlight />
+      ) : (
+        <p className="border-t border-[color:var(--color-border)] pt-4 text-xs text-muted-foreground">
+          Nenhum cenário simulado com os parâmetros de referência atuais (
+          {formatBRL(DIAGNOSTIC_REFERENCES.referenceCPL)} de CPL e{" "}
+          {formatPercent(DIAGNOSTIC_REFERENCES.referenceLeadToVisit, 0)} de Lead → Visita) supera o
+          cenário atual.
+        </p>
+      )}
 
-      <StageSection title="Visitas → Vendas" opportunity={opportunities.visitToSale}>
-        <Row label="Taxa atual" value={formatPercent(opportunities.visitToSale.currentValue, 1)} />
-        <Row
-          label="Cenário de referência"
-          value={formatPercent(opportunities.visitToSale.referenceValue, 1)}
-        />
-      </StageSection>
+      {qualityNormalization ? (
+        <div className="border-t border-[color:var(--color-border)] pt-4">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Cenário de normalização de qualidade (explicativo)
+          </p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Adota o CPL de referência mesmo sendo maior que o atual, só para ilustrar o trade-off
+            entre volume barato e o padrão usado na simulação.
+          </p>
+          <ScenarioChain scenario={qualityNormalization} compact />
+        </div>
+      ) : null}
 
       <div className="border-t border-[color:var(--color-border)] pt-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Vendas → VGV
-        </p>
         <Row label="Ticket médio" value={formatBRL(inputs.ticket)} />
-        <Row label="VGV atual" value={formatBRLAbbrev(current.vgv)} />
         <Row label="Receita bruta estimada atual" value={formatBRLAbbrev(current.revenue)} />
+        {recommended !== "A" ? (
+          <Row
+            label="Receita bruta estimada no cenário simulado"
+            value={formatBRLAbbrev(winner.vgv * (inputs.commission / 100))}
+          />
+        ) : null}
       </div>
 
       <div className="border-t border-[color:var(--color-border)] pt-4">
-        <Row label="Custo por lead (CPL)" value={formatBRL(current.cpl)} />
+        <Row
+          label="Custo por lead (CPL)"
+          value={current.hasLeads ? formatBRL(current.cpl) : "não calculável"}
+        />
         <Row label="Custo por visita" value={formatBRL(current.costPerVisit)} />
         <Row label="Custo de mídia por venda" value={formatBRL(current.costPerSale)} />
       </div>
@@ -78,39 +88,56 @@ export function DiagnosticDetailsRows({
   );
 }
 
-function StageSection({
+function ScenarioChain({
   title,
-  opportunity,
-  children,
+  scenario,
+  highlight,
+  compact,
 }: {
-  title: string;
-  opportunity: StageOpportunity;
-  children: ReactNode;
+  title?: string;
+  scenario: ScenarioResult;
+  highlight?: boolean;
+  compact?: boolean;
 }) {
   return (
-    <div className="border-t border-[color:var(--color-border)] pt-4 first:border-t-0 first:pt-0">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </p>
-      {children}
-      <p className="mt-1.5 text-xs text-muted-foreground">{stageStatusText(opportunity)}</p>
+    <div
+      className={
+        compact
+          ? ""
+          : "border-t border-[color:var(--color-border)] pt-4 first:border-t-0 first:pt-0"
+      }
+    >
+      {title ? (
+        <p
+          className={`mb-2 text-xs font-semibold uppercase tracking-wide ${
+            highlight ? "text-[color:var(--electric-bright)]" : "text-muted-foreground"
+          }`}
+        >
+          {title}
+        </p>
+      ) : null}
+      <Row label="CPL" value={scenario.cpl !== null ? formatBRL(scenario.cpl) : "não calculável"} />
+      <Row label="Leads" value={formatDecimalValue(scenario.leads)} />
+      <Row label="Lead → Visita" value={formatPercent(scenario.leadToVisit, 1)} />
+      <Row label="Visitas" value={formatDecimalValue(scenario.visits)} />
+      <Row label="Visita → Venda" value={formatPercent(scenario.visitToSale, 1)} />
+      <Row label="Vendas" value={formatDecimalValue(scenario.sales)} />
+      <Row label="VGV" value={formatBRLAbbrev(scenario.vgv)} highlight={highlight} />
     </div>
   );
 }
 
-function stageStatusText(opportunity: StageOpportunity): string {
-  if (!opportunity.eligible) return "Dados insuficientes para avaliar esta etapa.";
-  if (opportunity.incrementalVGV > MEANINGFUL_OPPORTUNITY_VGV) {
-    return `Oportunidade estimada: ${formatSignedBRLAbbrev(opportunity.incrementalVGV)}/mês em VGV.`;
-  }
-  return "Já dentro do cenário de referência utilizado nesta simulação.";
-}
-
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="font-display text-sm font-bold tabular-nums text-foreground">{value}</span>
+      <span
+        className={`font-display text-sm font-bold tabular-nums ${
+          highlight ? "text-[color:var(--electric-bright)]" : "text-foreground"
+        }`}
+      >
+        {value}
+      </span>
     </div>
   );
 }

@@ -20,8 +20,8 @@ export function useComputationFor(inputs: FunnelInputs, overrideRate?: number) {
     // Opportunity Engine — analisa TODAS as etapas do funil e decide onde
     // está a maior oportunidade incremental de VGV (não força Lead→Visita).
     const opportunities = analyzeOpportunities(inputs, current);
-    const comparison = buildStageComparison(inputs, current, opportunities);
-    const diagnostic = buildDiagnostic(inputs, current, opportunities, comparison);
+    const comparison = buildStageComparison(current, opportunities);
+    const diagnostic = buildDiagnostic(current, opportunities, comparison);
 
     // Simulador compacto (BLOCO 3 / "Ver diagnóstico completo") continua
     // simulando especificamente Lead→Visita, como já aprovado — independente
