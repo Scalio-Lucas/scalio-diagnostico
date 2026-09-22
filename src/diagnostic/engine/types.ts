@@ -56,32 +56,15 @@ export interface ProjectedMetrics {
   opportunityRevenue: number;
 }
 
-/** Qual variável mudou no cenário escolhido como "simulado" — só para a UI
- * decidir formatação (CPL em R$ vs. taxa em %) reaproveitando os mesmos
- * componentes visuais de sempre. */
-export type StageKey = "leadGeneration" | "leadToVisit";
+/** Como o CPL atual se compara ao CPL de referência configurado. */
+export type AcquisitionStatus =
+  "above_reference" | "near_reference" | "below_reference" | "not_calculable";
 
-/** Qual etapa (ou ausência de etapa) o diagnóstico aponta como gargalo. */
-export type BottleneckId = StageKey | "balanced";
+/** Onde a diferença entre VGV atual e VGV de referência aponta. */
+export type DiagnosticType = "no_investment" | "opportunity" | "near_reference" | "above_reference";
 
-/**
- * Classificação de alto nível do diagnóstico — determina qual copy/layout o
- * resultado usa.
- */
-export type DiagnosticType =
-  | "no_leads"
-  | "no_visits"
-  | "no_sales_history"
-  | "acquisition_opportunity" // Cenário C bate A e B: vale normalizar aquisição
-  | "conversion_opportunity" // Cenário B bate A (C não soma nada além de B)
-  | "already_efficient"; // Nenhum cenário simulado supera o atual
-
-/**
- * Quão confiável é a taxa observada, dado o tamanho da amostra que a gerou.
- * Nunca exibido literalmente ao usuário — só amacia o texto.
- */
-export type SampleConfidence =
-  "low_sample" | "usable_sample" | "stronger_sample" | "not_applicable";
+/** Qual eixo do funil o texto do diagnóstico deve destacar. */
+export type PrimaryFocus = "acquisition" | "conversion" | "both" | "none";
 
 export interface FunnelSnapshot {
   leads: number;
@@ -91,42 +74,43 @@ export interface FunnelSnapshot {
 }
 
 /**
- * Um cenário completo da cadeia Investimento→CPL→Leads→Visitas→Vendas→VGV.
- * `cpl` e `leadToVisit` variam por cenário; `visitToSale` é SEMPRE a taxa
- * real informada pelo usuário — não existe referência configurada pra ela.
+ * Cenário de referência — SEMPRE recalculado a partir do investimento e dos
+ * parâmetros de `DIAGNOSTIC_CONFIG`, nunca a partir do volume atual de leads.
+ * `visits`/`sales*` usam a taxa de referência diretamente (Lead→Venda não
+ * depende da Visita→Venda histórica do cliente).
  */
-export interface ScenarioResult {
-  /** null = CPL não calculável (investimento ou leads = 0). */
-  cpl: number | null;
-  leadToVisit: number;
-  visitToSale: number;
+export interface ReferenceScenario {
+  cpl: number;
   leads: number;
+  leadToVisit: number;
   visits: number;
-  sales: number;
-  vgv: number;
+  /** Visita→Venda implícita nas referências (leadToSaleRateBase / leadToVisitRate) — só para exibição coerente. */
+  impliedVisitToSale: number;
+  leadToSaleMin: number;
+  leadToSaleBase: number;
+  leadToSaleMax: number;
+  salesMin: number;
+  salesBase: number;
+  salesMax: number;
+  vgvMin: number;
+  vgvBase: number;
+  vgvMax: number;
 }
 
-/** Saída do Scenario Engine — os 3 cenários (A/B/C) + veredito honesto. */
+/** Saída do Scenario Engine — cenário de referência + veredito honesto. */
 export interface OpportunityAnalysis {
-  scenarioA: ScenarioResult;
-  scenarioB: ScenarioResult;
-  scenarioC: ScenarioResult;
-  /** Só existe quando CPL está anormalmente baixo E Lead→Visita abaixo da
-   * referência — explica o trade-off volume-barato vs. qualidade-de-referência,
-   * nunca é apresentado como o cenário recomendado. */
-  qualityNormalization: ScenarioResult | null;
-  /** Qual cenário é matematicamente o melhor entre A/B/C. */
-  recommended: "A" | "B" | "C";
-  leadToVisitConfidence: SampleConfidence;
+  reference: ReferenceScenario;
+  acquisitionStatus: AcquisitionStatus;
+  leadToVisitOk: boolean;
+  leadToSaleOk: boolean;
+  primaryFocus: PrimaryFocus;
+  /** VGV_referência(base) − VGV_atual. Pode ser negativo — nunca é forçado a positivo aqui. */
+  deltaVGV: number;
   diagnosticType: DiagnosticType;
 }
 
-/**
- * Comparação Hoje × Cenário pronta para o BLOCO 2, já isolada na etapa
- * escolhida como `primaryBottleneck` (seções 26-30).
- */
+/** Comparação Hoje × Cenário de referência pronta para o BLOCO 2. */
 export interface StageComparison {
-  stage: StageKey;
   today: FunnelSnapshot;
   scenario: FunnelSnapshot;
   leadToVisitToday: number;
@@ -134,7 +118,7 @@ export interface StageComparison {
   visitToSaleToday: number;
   visitToSaleScenario: number;
   opportunityVGV: number;
-  /** Métrica que a etapa isolada varia — CPL (R$) ou uma taxa (0-1). */
+  /** CPL é sempre a métrica em destaque no conector — quem muda o volume agora. */
   primaryMetricKind: "currency" | "percent";
   primaryMetricToday: number;
   primaryMetricScenario: number;
@@ -142,17 +126,15 @@ export interface StageComparison {
 
 export interface Diagnostic {
   diagnosticType: DiagnosticType;
-  primaryBottleneck: BottleneckId | null;
+  primaryFocus: PrimaryFocus;
   hasOpportunity: boolean;
   opportunityVGV: number;
   /** Linha de fallback do BLOCO 1 quando não há oportunidade a destacar. */
   subheadline: string;
-  /** "Sem aumentar X" — o que fica constante na simulação (varia por etapa). */
+  /** "Mantendo seu investimento atual." — o que fica constante na simulação. */
   constantLine: string;
-  /** Linha de contexto dinâmica do BLOCO 1 (ex.: "Seu CPL hoje é..."). */
+  /** Linha de contexto dinâmica do BLOCO 1. */
   contextLine: string;
-  /** Título/subtítulo do BLOCO 2, adaptados à etapa em destaque. */
-  comparisonTitle: string;
   comparisonSubtitle: string;
   diagnosticText: string;
   secondaryObservation: string | null;

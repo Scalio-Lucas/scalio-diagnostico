@@ -17,11 +17,12 @@ export function useComputationFor(inputs: FunnelInputs, overrideRate?: number) {
   return useMemo(() => {
     const current = computeCurrentMetrics(inputs);
 
-    // Opportunity Engine — analisa TODAS as etapas do funil e decide onde
-    // está a maior oportunidade incremental de VGV (não força Lead→Visita).
+    // Scenario Engine — cenário de referência SEMPRE recalculado a partir do
+    // investimento e dos parâmetros de DIAGNOSTIC_CONFIG, nunca do volume
+    // atual de leads (regra absoluta: nunca copiar leads atuais).
     const opportunities = analyzeOpportunities(inputs, current);
-    const comparison = buildStageComparison(current, opportunities);
-    const diagnostic = buildDiagnostic(current, opportunities, comparison);
+    const comparison = buildStageComparison(inputs, current, opportunities);
+    const diagnostic = buildDiagnostic(current, opportunities);
 
     // Simulador compacto (BLOCO 3 / "Ver diagnóstico completo") continua
     // simulando especificamente Lead→Visita, como já aprovado — independente

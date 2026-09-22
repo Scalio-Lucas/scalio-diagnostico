@@ -34,10 +34,10 @@ export function ResultDashboard() {
   const live = useComputationFor(inputs, simulatorRate);
   const { current, opportunities, comparison, diagnostic } = live;
 
-  // O Opportunity Engine só devolve uma comparação Hoje×Cenário quando o
-  // gargalo principal é uma etapa isolável (investimento→leads, lead→visita
-  // ou visita→venda). Sem vendas, sem visitas, sem leads, ou quando nenhuma
-  // etapa se destaca (volume/funil equilibrado), mostramos só o funil atual.
+  // O Scenario Engine só não consegue montar um cenário de referência quando
+  // não há investimento informado (não dá para calcular investimento÷CPL).
+  // Fora esse caso, a comparação Hoje×Referência está sempre disponível,
+  // mesmo sem visitas ou vendas históricas.
   if (!comparison) {
     return (
       <div className="mx-auto max-w-md px-5 pb-16">
@@ -64,19 +64,17 @@ export function ResultDashboard() {
         <CTASection />
 
         <div className="mt-6 space-y-3">
-          {current.hasSales ? (
-            <SecondaryDiagnosticSection
-              diagnostic={diagnostic}
-              inputs={inputs}
-              current={current}
-              opportunities={opportunities}
-              projected={live.projected}
-              simulatorRate={simulatorRate}
-              simulatorMin={live.simulatorMin}
-              simulatorMax={live.simulatorMax}
-              onSimulatorChange={setSimulatorRate}
-            />
-          ) : null}
+          <SecondaryDiagnosticSection
+            diagnostic={diagnostic}
+            inputs={inputs}
+            current={current}
+            opportunities={opportunities}
+            projected={live.projected}
+            simulatorRate={simulatorRate}
+            simulatorMin={live.simulatorMin}
+            simulatorMax={live.simulatorMax}
+            onSimulatorChange={setSimulatorRate}
+          />
           <HowWeCalculate />
         </div>
 
@@ -90,7 +88,7 @@ export function ResultDashboard() {
       {/* BLOCO 1 */}
       <DiagnosisHero diagnostic={diagnostic} />
 
-      {/* BLOCO 2 — dinâmico: mostra a etapa que o motor apontou como gargalo */}
+      {/* BLOCO 2 — Hoje × Cenário de referência */}
       <div className="mt-10">
         <ImpactComparison comparison={comparison} diagnostic={diagnostic} />
       </div>

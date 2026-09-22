@@ -1,18 +1,11 @@
-import { DIAGNOSTIC_REFERENCES, SCENARIOS } from "../config";
-import { formatBRL, formatPercent } from "./format";
-import type {
-  CurrentMetrics,
-  Diagnostic,
-  OpportunityAnalysis,
-  ScenarioKey,
-  StageComparison,
-} from "./types";
+import { DIAGNOSTIC_CONFIG, SCENARIOS } from "../config";
+import { formatBRL, formatDecimalValue, formatPercent } from "./format";
+import type { CurrentMetrics, Diagnostic, OpportunityAnalysis, ScenarioKey } from "./types";
 
 /**
  * Escolhe o cenário-base do simulador de Lead→Visita (BLOCO 3 / "Ver
- * diagnóstico completo"). Esse simulador continua existindo como está —
- * "Potencial" (20%) é o piso, só sobe para "alta eficiência" quando a própria
- * taxa atual já superar 20%. Independente do Scenario Engine abaixo.
+ * diagnóstico completo"). Ferramenta de exploração independente do Scenario
+ * Engine abaixo — continua funcionando exatamente como antes.
  */
 export function pickInitialScenario(current: CurrentMetrics): ScenarioKey {
   const baseOrder: Exclude<ScenarioKey, "custom">[] = ["potential", "highEfficiency"];
@@ -20,6 +13,138 @@ export function pickInitialScenario(current: CurrentMetrics): ScenarioKey {
     if (SCENARIOS[key].leadToVisit > current.leadToVisit) return key;
   }
   return "highEfficiency";
+}
+
+/**
+ * Diagnostic Engine — traduz o veredito do Scenario Engine em texto, em
+ * linguagem matemática ("cenário de referência", "estimativa", "parâmetro
+ * utilizado"), nunca causal ou promissória ("você vai vender", "garantido").
+ * Nunca decide sozinho se há oportunidade — isso é `analyzeOpportunities`.
+ */
+export function buildDiagnostic(
+  current: CurrentMetrics,
+  opportunities: OpportunityAnalysis,
+): Diagnostic {
+  if (opportunities.diagnosticType === "no_investment") {
+    const text =
+      "Não há investimento em marketing informado, então não é possível calcular quantos leads o cenário de referência (R$20 por lead qualificado) produziria. O diagnóstico de aquisição e conversão continua disponível para os dados já informados.";
+    return {
+      diagnosticType: "no_investment",
+      primaryFocus: "none",
+      hasOpportunity: false,
+      opportunityVGV: 0,
+      subheadline: "Não há investimento informado para calcular o cenário de referência.",
+      constantLine: "",
+      contextLine: "",
+      comparisonSubtitle: "",
+      diagnosticText: text,
+      secondaryObservation: null,
+      recommendations: [],
+    };
+  }
+
+  const { reference } = opportunities;
+  const { qualifiedLeadCPL, leadToVisitRate, leadToSaleRateMin, leadToSaleRateMax } =
+    DIAGNOSTIC_CONFIG;
+  const cplAtual = current.hasLeads ? current.cpl : null;
+
+  const acquisitionLine =
+    cplAtual === null
+      ? `não há leads suficientes para calcular seu custo por lead atual`
+      : opportunities.acquisitionStatus === "above_reference"
+        ? `seu custo atual por lead (${formatBRL(cplAtual)}) está acima do parâmetro de ${formatBRL(qualifiedLeadCPL)} utilizado nesta simulação`
+        : opportunities.acquisitionStatus === "below_reference"
+          ? `seu custo atual por lead (${formatBRL(cplAtual)}) está abaixo do parâmetro de ${formatBRL(qualifiedLeadCPL)} utilizado nesta simulação`
+          : `seu custo atual por lead (${formatBRL(cplAtual)}) está próximo do parâmetro de ${formatBRL(qualifiedLeadCPL)} utilizado nesta simulação`;
+
+  const conversionLine = `hoje ${formatPercent(current.leadToVisit, 1)} dos leads chegam à visita e ${formatPercent(current.leadToSale, 1)} chegam à venda, contra os parâmetros de ${formatPercent(leadToVisitRate, 0)} e ${formatPercent(leadToSaleRateMin, 0)}–${formatPercent(leadToSaleRateMax, 0)} utilizados nesta simulação`;
+
+  const noSalesNote = !current.hasSales
+    ? "Como não há vendas registradas no período informado, esta é uma simulação baseada nos parâmetros de referência, não uma projeção a partir do histórico de vendas da operação."
+    : null;
+
+  if (opportunities.diagnosticType === "near_reference") {
+    return {
+      diagnosticType: "near_reference",
+      primaryFocus: opportunities.primaryFocus,
+      hasOpportunity: false,
+      opportunityVGV: 0,
+      subheadline: "Seu VGV atual está próximo do cenário de referência utilizado nesta simulação.",
+      constantLine: "Mantendo seu investimento atual.",
+      contextLine: `No cenário de referência, ${acquisitionLine}, e ${conversionLine}.`,
+      comparisonSubtitle: "Mesmo investimento. Volume recalculado no cenário de referência.",
+      diagnosticText: `Seu VGV atual está próximo do cenário de referência utilizado nesta simulação: ${acquisitionLine.charAt(0).toUpperCase()}${acquisitionLine.slice(1)}, e ${conversionLine}.`,
+      secondaryObservation: noSalesNote,
+      recommendations: [],
+    };
+  }
+
+  if (opportunities.diagnosticType === "above_reference") {
+    const betterPoints: string[] = [];
+    if (opportunities.acquisitionStatus !== "above_reference")
+      betterPoints.push("seu custo por lead");
+    if (opportunities.leadToVisitOk) betterPoints.push("sua taxa Lead → Visita");
+    if (opportunities.leadToSaleOk) betterPoints.push("sua taxa Lead → Venda");
+
+    return {
+      diagnosticType: "above_reference",
+      primaryFocus: opportunities.primaryFocus,
+      hasOpportunity: false,
+      opportunityVGV: 0,
+      subheadline: "Seu VGV atual está acima do cenário de referência utilizado neste diagnóstico.",
+      constantLine: "Mantendo seu investimento atual.",
+      contextLine: `No cenário de referência, ${acquisitionLine}, e ${conversionLine}.`,
+      comparisonSubtitle: "Mesmo investimento. Cenário de referência para comparação.",
+      diagnosticText:
+        betterPoints.length > 0
+          ? `Com os dados informados, ${joinList(betterPoints)} já ${betterPoints.length > 1 ? "estão" : "está"} acima do parâmetro utilizado nesta simulação — por isso seu VGV atual (${formatBRL(current.vgv)}) supera o VGV estimado no cenário de referência (${formatBRL(reference.vgvBase)}).`
+          : `Com os dados informados, seu VGV atual (${formatBRL(current.vgv)}) já está acima do VGV estimado no cenário de referência (${formatBRL(reference.vgvBase)}).`,
+      secondaryObservation: noSalesNote,
+      recommendations: [],
+    };
+  }
+
+  // opportunity
+  const opportunityVGV = Math.max(opportunities.deltaVGV, 0);
+  const focus = opportunities.primaryFocus;
+
+  let diagnosticText: string;
+  if (focus === "acquisition") {
+    diagnosticText = `Seu principal ponto de atenção parece estar na aquisição: ${acquisitionLine}. Com o mesmo investimento, o cenário de referência recalcula o volume a partir de ${formatBRL(qualifiedLeadCPL)} por lead qualificado: ${formatDecimalValue(reference.leads)} leads projetados, ${formatDecimalValue(reference.visits)} visitas e uma faixa de ${formatDecimalValue(reference.salesMin)} a ${formatDecimalValue(reference.salesMax)} vendas esperadas (base: ${formatDecimalValue(reference.salesBase)}). Suas taxas de conversão (${conversionLine.replace("hoje ", "")}) já acompanham essa simulação.`;
+  } else if (focus === "conversion") {
+    diagnosticText = `Seu custo por lead já está dentro do parâmetro utilizado nesta simulação. A diferença aparece na conversão: ${conversionLine}. Mantendo o volume de leads projetados (${formatDecimalValue(reference.leads)}) neste CPL de referência, elevar essas taxas para os parâmetros utilizados resultaria em ${formatDecimalValue(reference.visits)} visitas e uma faixa de ${formatDecimalValue(reference.salesMin)} a ${formatDecimalValue(reference.salesMax)} vendas esperadas (base: ${formatDecimalValue(reference.salesBase)}).`;
+  } else if (focus === "both") {
+    diagnosticText = `Identificamos oportunidade em duas frentes: ${acquisitionLine}, e ${conversionLine}. No cenário de referência, o mesmo investimento produziria ${formatDecimalValue(reference.leads)} leads, ${formatDecimalValue(reference.visits)} visitas e uma faixa de ${formatDecimalValue(reference.salesMin)} a ${formatDecimalValue(reference.salesMax)} vendas esperadas (base: ${formatDecimalValue(reference.salesBase)}).`;
+  } else {
+    diagnosticText = `Com base nos números informados, o cenário de referência (${formatBRL(qualifiedLeadCPL)} de CPL, ${formatPercent(leadToVisitRate, 0)} de Lead → Visita e ${formatPercent(leadToSaleRateMin, 0)}–${formatPercent(leadToSaleRateMax, 0)} de Lead → Venda) aponta uma oportunidade estimada em VGV, mesmo com seus indicadores próximos dos parâmetros utilizados.`;
+  }
+
+  const constantLine =
+    focus === "conversion"
+      ? "Mantendo o volume de leads do cenário de referência."
+      : "Mantendo seu investimento atual.";
+
+  const comparisonSubtitle =
+    focus === "acquisition"
+      ? "Mesmo investimento. Volume recalculado no CPL de referência."
+      : focus === "conversion"
+        ? "Mesmo CPL de referência. Conversão no parâmetro utilizado."
+        : "Mesmo investimento. Cenário de referência para comparação.";
+
+  return {
+    diagnosticType: "opportunity",
+    primaryFocus: focus,
+    hasOpportunity: opportunityVGV > 0,
+    opportunityVGV,
+    subheadline:
+      "Com base nos números informados, o cenário de referência aponta uma oportunidade estimada em VGV potencial/mês.",
+    constantLine,
+    contextLine: `No cenário de referência, ${acquisitionLine}, e ${conversionLine}.`,
+    comparisonSubtitle,
+    diagnosticText,
+    secondaryObservation: noSalesNote,
+    recommendations: focus === "acquisition" ? [] : LEAD_TO_VISIT_HYPOTHESES,
+  };
 }
 
 const LEAD_TO_VISIT_HYPOTHESES = [
@@ -30,169 +155,7 @@ const LEAD_TO_VISIT_HYPOTHESES = [
   "processo de agendamento",
 ];
 
-/**
- * Diagnostic Engine — traduz o veredito do Scenario Engine (A/B/C) em texto.
- * Nunca decide sozinho qual cenário é melhor (isso é trabalho do
- * `analyzeOpportunities`); só descreve o resultado em linguagem matemática
- * ("cenário simulado", "parâmetro de referência", "oportunidade estimada"),
- * nunca causal ou promissória ("você vai gerar", "garantido").
- */
-export function buildDiagnostic(
-  current: CurrentMetrics,
-  opportunities: OpportunityAnalysis,
-  comparison: StageComparison | null,
-): Diagnostic {
-  switch (opportunities.diagnosticType) {
-    case "no_leads":
-      return terminalDiagnostic(
-        "no_leads",
-        "Não há leads suficientes informados para diagnosticar o funil.",
-        "Não há leads registrados no período informado. Sem leads, ainda não é possível calcular o custo por lead nem projetar visitas ou vendas — a primeira etapa a revisar é o volume de oportunidades gerado pelo investimento.",
-      );
-
-    case "no_visits":
-      return terminalDiagnostic(
-        "no_visits",
-        "Hoje, nenhum dos leads informados chegou a uma visita.",
-        `Hoje, 0% dos leads chegam a uma visita. É possível simular quantas visitas o parâmetro de referência (${formatPercent(DIAGNOSTIC_REFERENCES.referenceLeadToVisit, 0)}) produziria com o mesmo volume de leads, mas ainda não há dados suficientes para projetar vendas ou VGV a partir dessas visitas.`,
-      );
-
-    case "no_sales_history":
-      return terminalDiagnostic(
-        "no_sales_history",
-        "Ainda não há histórico suficiente para estimar VGV potencial com segurança.",
-        `Como não houve vendas originadas dessas visitas no período informado, ainda não existe histórico suficiente para estimar com segurança o VGV potencial. Hoje, ${formatPercent(current.leadToVisit)} dos leads chegam à visita — o diagnóstico de aquisição e de Lead → Visita continua disponível em "Ver diagnóstico completo".`,
-      );
-
-    case "already_efficient":
-      return buildAlreadyEfficientDiagnostic(current, opportunities);
-
-    case "conversion_opportunity":
-    case "acquisition_opportunity":
-    default:
-      return buildOpportunityDiagnostic(current, opportunities, comparison);
-  }
-}
-
-function terminalDiagnostic(
-  diagnosticType: Diagnostic["diagnosticType"],
-  subheadline: string,
-  diagnosticText: string,
-): Diagnostic {
-  return {
-    diagnosticType,
-    primaryBottleneck: null,
-    hasOpportunity: false,
-    opportunityVGV: 0,
-    subheadline,
-    constantLine: "",
-    contextLine: "",
-    comparisonTitle: "",
-    comparisonSubtitle: "",
-    diagnosticText,
-    secondaryObservation: null,
-    recommendations: [],
-  };
-}
-
-function buildAlreadyEfficientDiagnostic(
-  current: CurrentMetrics,
-  opportunities: OpportunityAnalysis,
-): Diagnostic {
-  const { referenceCPL, referenceLeadToVisit, referenceLeadToSale } = DIAGNOSTIC_REFERENCES;
-  const cplOk = opportunities.scenarioA.cpl === null || opportunities.scenarioA.cpl <= referenceCPL;
-  const leadToVisitOk = current.leadToVisit >= referenceLeadToVisit;
-  const leadToSaleOk = current.leadToSale >= referenceLeadToSale;
-
-  let diagnosticText: string;
-  if (cplOk && leadToVisitOk) {
-    diagnosticText = `Com base nos dados informados, seu custo por lead${
-      opportunities.scenarioA.cpl !== null ? ` (${formatBRL(opportunities.scenarioA.cpl)})` : ""
-    } e sua taxa Lead → Visita (${formatPercent(current.leadToVisit)}) já estão dentro do cenário de referência utilizado nesta simulação (${formatBRL(referenceCPL)} de CPL e ${formatPercent(referenceLeadToVisit, 0)} de Lead → Visita). Sua taxa geral de Lead → Venda hoje é ${formatPercent(current.leadToSale, 1)}${leadToSaleOk ? ", também acima do parâmetro de referência de " + formatPercent(referenceLeadToSale, 0) : ` (parâmetro de referência: ${formatPercent(referenceLeadToSale, 0)})`}. Não identificamos, com os dados informados, uma oportunidade matemática clara nesses parâmetros.`;
-  } else {
-    diagnosticText =
-      "Com base nos dados informados, os cenários simulados (mesma aquisição com conversão de referência, e aquisição normalizada com conversão de referência) não produzem uma estimativa de VGV superior ao seu cenário atual.";
-  }
-
-  return {
-    diagnosticType: "already_efficient",
-    primaryBottleneck: "balanced",
-    hasOpportunity: false,
-    opportunityVGV: 0,
-    subheadline:
-      "Nos cenários simulados, seu funil já captura bem o volume atual de oportunidades.",
-    constantLine: "",
-    contextLine: "",
-    comparisonTitle: "",
-    comparisonSubtitle: "",
-    diagnosticText,
-    secondaryObservation: null,
-    recommendations: [],
-  };
-}
-
-function buildOpportunityDiagnostic(
-  current: CurrentMetrics,
-  opportunities: OpportunityAnalysis,
-  comparison: StageComparison | null,
-): Diagnostic {
-  const isAcquisition = opportunities.diagnosticType === "acquisition_opportunity";
-  const winner = isAcquisition ? opportunities.scenarioC : opportunities.scenarioB;
-  const opportunityVGV =
-    comparison?.opportunityVGV ?? Math.max(winner.vgv - opportunities.scenarioA.vgv, 0);
-  const hasOpportunity = opportunityVGV > 0;
-
-  let contextLine: string;
-  let constantLine: string;
-  let comparisonSubtitle: string;
-  let diagnosticText: string;
-
-  if (isAcquisition) {
-    const cplAtual = opportunities.scenarioA.cpl;
-    contextLine = `Seu custo atual por lead é ${cplAtual !== null ? formatBRL(cplAtual) : "não calculável"}. No cenário simulado, utilizamos ${formatBRL(winner.cpl ?? DIAGNOSTIC_REFERENCES.referenceCPL)} (parâmetro de referência) para o mesmo investimento.`;
-    constantLine = "Mantendo seu investimento atual.";
-    comparisonSubtitle = "Mesmo investimento. Aquisição e conversão no cenário de referência.";
-    diagnosticText = `Com o mesmo investimento informado, seu custo atual por lead é de ${cplAtual !== null ? formatBRL(cplAtual) : "não calculável"}. No cenário simulado, utilizando um CPL de referência de ${formatBRL(DIAGNOSTIC_REFERENCES.referenceCPL)} e uma taxa Lead → Visita de ${formatPercent(DIAGNOSTIC_REFERENCES.referenceLeadToVisit, 0)}, o mesmo investimento produziria um volume diferente de leads — mantendo sua conversão real de visita em venda, a estimativa de VGV é maior que a atual.`;
-  } else {
-    contextLine = `Sua taxa de Lead → Visita hoje é ${formatPercent(current.leadToVisit, 1)}. No cenário simulado, utilizamos ${formatPercent(DIAGNOSTIC_REFERENCES.referenceLeadToVisit, 0)} (parâmetro de referência).`;
-    constantLine = "Mantendo seu investimento e volume de leads atuais.";
-    comparisonSubtitle = "Mesma aquisição. Mais leads avançando para visita.";
-    diagnosticText = `Mantendo o mesmo investimento e o mesmo volume de leads, simulamos o impacto de elevar a taxa Lead → Visita de ${formatPercent(current.leadToVisit, 1)} para ${formatPercent(DIAGNOSTIC_REFERENCES.referenceLeadToVisit, 0)} (parâmetro utilizado nesta simulação), preservando sua conversão real de visita em venda.`;
-  }
-
-  const secondaryObservation = buildSecondaryObservation(current, opportunities);
-
-  return {
-    diagnosticType: opportunities.diagnosticType,
-    primaryBottleneck: isAcquisition ? "leadGeneration" : "leadToVisit",
-    hasOpportunity,
-    opportunityVGV: Math.max(opportunityVGV, 0),
-    subheadline: hasOpportunity
-      ? "Com base nos números informados, o cenário simulado aponta uma oportunidade estimada em VGV potencial/mês."
-      : "Nos cenários simulados, seu funil já captura bem o volume atual de oportunidades.",
-    constantLine,
-    contextLine,
-    comparisonTitle: "O impacto está aqui",
-    comparisonSubtitle,
-    diagnosticText,
-    secondaryObservation,
-    recommendations: isAcquisition ? [] : LEAD_TO_VISIT_HYPOTHESES,
-  };
-}
-
-function buildSecondaryObservation(
-  current: CurrentMetrics,
-  opportunities: OpportunityAnalysis,
-): string | null {
-  if (opportunities.leadToVisitConfidence === "low_sample") {
-    return "Com o volume informado, ainda há pouca amostra para avaliar a taxa Lead → Visita com segurança.";
-  }
-
-  const quality = opportunities.qualityNormalization;
-  if (quality) {
-    const comparedToAtual = quality.vgv > opportunities.scenarioA.vgv ? "maior" : "menor";
-    return `Seu custo atual por lead (${formatBRL(opportunities.scenarioA.cpl ?? 0)}) está bem abaixo do parâmetro de referência (${formatBRL(DIAGNOSTIC_REFERENCES.referenceCPL)}). Isso pode indicar um volume de leads com critério de captação diferente do usado na referência — simulando o padrão de referência para esse mesmo investimento, o resultado estimado seria ${comparedToAtual} que o cenário atual, o que não prova nem descarta diferença de qualidade, apenas contextualiza o volume.`;
-  }
-
-  return null;
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
 }

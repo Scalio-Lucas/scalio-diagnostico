@@ -1,7 +1,8 @@
 import type { ScenarioDefinition, ScenarioKey } from "./engine/types";
 
-// Parâmetros internos de simulação — NÃO são benchmarks garantidos de mercado.
-// Centralizados aqui para poderem ser recalibrados sem tocar na lógica do motor.
+// Parâmetros do simulador de Lead→Visita em "Ver diagnóstico completo"
+// (BLOCO 3) — ferramenta de exploração independente do motor de diagnóstico
+// principal abaixo. NÃO são benchmarks garantidos de mercado.
 export const SCENARIOS: Record<Exclude<ScenarioKey, "custom">, ScenarioDefinition> = {
   conservative: { key: "conservative", label: "Conservador", leadToVisit: 0.1 },
   potential: { key: "potential", label: "Potencial", leadToVisit: 0.2 },
@@ -19,43 +20,31 @@ export const SIMULATOR_DEFAULT_CEILING = 0.3;
 export const SIMULATOR_ABSOLUTE_CEILING = 0.6;
 
 /**
- * Parâmetros de REFERÊNCIA do motor de cenários — não são benchmarks de
- * mercado nem resultado garantido, só os números usados internamente para
- * montar o Cenário C (aquisição normalizada + conversão). Centralizados aqui
- * para poderem ser recalibrados sem tocar em nenhuma fórmula.
- *
- * `referenceLeadToSale` é só informativo (mostrado em "Ver diagnóstico
- * completo" e citado no texto quando o funil já está eficiente) — não existe
- * referência para Visita → Venda isoladamente, então esse número não vira
- * uma variável que algum cenário tenta atingir sozinho.
+ * Configuração central do motor de diagnóstico — cenário de referência
+ * operacional, NÃO uma média de mercado nem um resultado garantido. Toda
+ * fórmula do motor lê os números daqui; nada deve ficar hardcoded em
+ * componente ou função nenhuma.
  */
-export const DIAGNOSTIC_REFERENCES = {
-  referenceCPL: 20,
-  referenceLeadToVisit: 0.2,
-  referenceLeadToSale: 0.06,
+export const DIAGNOSTIC_CONFIG = {
+  /** R$ por lead qualificado no cenário de referência. */
+  qualifiedLeadCPL: 20,
+  /** Taxa Lead → Visita do cenário de referência. */
+  leadToVisitRate: 0.2,
+  /** Faixa Lead → Venda do cenário de referência — nunca um único número. */
+  leadToSaleRateMin: 0.04,
+  leadToSaleRateBase: 0.05,
+  leadToSaleRateMax: 0.06,
 };
 
-/**
- * Dispara o "cenário de normalização de qualidade": quando o CPL atual está
- * abaixo desta fração do CPL de referência (ex.: 0.5 = menos da metade) E a
- * taxa Lead→Visita está abaixo da referência, o volume barato de leads pode
- * indicar critério de captação diferente do usado na referência. Nesse caso
- * o motor também calcula (só para explicar, nunca como cenário principal) o
- * que aconteceria adotando o CPL de referência mesmo sendo "pior" numérico.
- */
-export const LOW_CPL_RATIO = 0.5;
+// Dentro desta margem (para mais ou para menos) em torno do CPL de
+// referência, o CPL atual é tratado como "próximo da referência" em vez de
+// "acima" ou "abaixo" dela.
+export const CPL_NEAR_TOLERANCE = 0.15;
 
-// Abaixo deste número de eventos (leads para a taxa Lead→Visita, visitas para
-// Visita→Venda), a taxa calculada é tratada como amostra pequena e o texto do
-// diagnóstico fica mais cauteloso — nunca escondido, só menos categórico.
-export const SAMPLE_SIZE_THRESHOLDS = {
-  low: 10,
-  usable: 30,
-};
-
-// Abaixo deste valor, uma oportunidade incremental de VGV é tratada como
-// "nenhuma" (evita apontar um gargalo por causa de ruído de arredondamento).
-export const MEANINGFUL_OPPORTUNITY_VGV = 1;
+// Se a diferença entre VGV atual e VGV de referência (base) for menor que
+// esta fração do maior dos dois valores, tratamos como "sem diferença
+// relevante" em vez de forçar uma leitura de oportunidade ou de perda.
+export const VGV_NEAR_TOLERANCE = 0.05;
 
 export const WHATSAPP_GROUP_URL = "https://chat.whatsapp.com/Cn2VWBtUgEw0ZrIyCh2JBZ";
 
