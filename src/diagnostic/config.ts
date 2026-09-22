@@ -18,26 +18,21 @@ export const SCENARIO_ORDER: Exclude<ScenarioKey, "custom">[] = [
 export const SIMULATOR_DEFAULT_CEILING = 0.3;
 export const SIMULATOR_ABSOLUTE_CEILING = 0.6;
 
-// Abaixo disso o volume de oportunidades (leads) já limita o funil,
-// independente da eficiência de conversão.
-export const LOW_LEADS_THRESHOLD = 50;
-
-// Limiares usados só para redigir o diagnóstico (não afetam o cálculo).
-export const LEAD_TO_VISIT_HEALTHY = 0.2;
-export const VISIT_TO_SALE_HEALTHY = 0.2;
-
 /**
  * Parâmetros de REFERÊNCIA do motor de cenários — não são benchmarks de
  * mercado nem resultado garantido, só os números usados internamente para
  * montar o Cenário C (aquisição normalizada + conversão). Centralizados aqui
  * para poderem ser recalibrados sem tocar em nenhuma fórmula.
  *
- * Importante: NÃO existe referência para Visita → Venda — essa taxa é
- * sempre a real, informada pelo usuário, em todo cenário.
+ * `referenceLeadToSale` é só informativo (mostrado em "Ver diagnóstico
+ * completo" e citado no texto quando o funil já está eficiente) — não existe
+ * referência para Visita → Venda isoladamente, então esse número não vira
+ * uma variável que algum cenário tenta atingir sozinho.
  */
 export const DIAGNOSTIC_REFERENCES = {
   referenceCPL: 20,
-  referenceLeadToVisit: 0.06,
+  referenceLeadToVisit: 0.2,
+  referenceLeadToSale: 0.06,
 };
 
 /**

@@ -81,8 +81,12 @@ export function DiagnosticDetailsRows({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Os cenários de referência são parâmetros desta simulação, não benchmarks garantidos de
-        mercado. A comissão é usada apenas para calcular receita, nunca como possível gargalo.
+        Parâmetros de referência utilizados nesta simulação:{" "}
+        {formatBRL(DIAGNOSTIC_REFERENCES.referenceCPL)} de CPL,{" "}
+        {formatPercent(DIAGNOSTIC_REFERENCES.referenceLeadToVisit, 0)} de Lead → Visita e{" "}
+        {formatPercent(DIAGNOSTIC_REFERENCES.referenceLeadToSale, 0)} de Lead → Venda. Não são
+        benchmarks garantidos de mercado — só os parâmetros usados aqui. A comissão é usada apenas
+        para calcular receita, nunca como possível gargalo.
       </p>
     </div>
   );
@@ -122,6 +126,10 @@ function ScenarioChain({
       <Row label="Visitas" value={formatDecimalValue(scenario.visits)} />
       <Row label="Visita → Venda" value={formatPercent(scenario.visitToSale, 1)} />
       <Row label="Vendas" value={formatDecimalValue(scenario.sales)} />
+      <Row
+        label="Lead → Venda"
+        value={formatPercent(scenario.leadToVisit * scenario.visitToSale, 1)}
+      />
       <Row label="VGV" value={formatBRLAbbrev(scenario.vgv)} highlight={highlight} />
     </div>
   );

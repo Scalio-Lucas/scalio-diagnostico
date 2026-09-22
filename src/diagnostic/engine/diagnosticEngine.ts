@@ -99,15 +99,16 @@ function buildAlreadyEfficientDiagnostic(
   current: CurrentMetrics,
   opportunities: OpportunityAnalysis,
 ): Diagnostic {
-  const { referenceCPL, referenceLeadToVisit } = DIAGNOSTIC_REFERENCES;
+  const { referenceCPL, referenceLeadToVisit, referenceLeadToSale } = DIAGNOSTIC_REFERENCES;
   const cplOk = opportunities.scenarioA.cpl === null || opportunities.scenarioA.cpl <= referenceCPL;
   const leadToVisitOk = current.leadToVisit >= referenceLeadToVisit;
+  const leadToSaleOk = current.leadToSale >= referenceLeadToSale;
 
   let diagnosticText: string;
   if (cplOk && leadToVisitOk) {
     diagnosticText = `Com base nos dados informados, seu custo por lead${
       opportunities.scenarioA.cpl !== null ? ` (${formatBRL(opportunities.scenarioA.cpl)})` : ""
-    } e sua taxa Lead → Visita (${formatPercent(current.leadToVisit)}) já estão dentro do cenário de referência utilizado nesta simulação (${formatBRL(referenceCPL)} de CPL e ${formatPercent(referenceLeadToVisit, 0)} de Lead → Visita). Não identificamos, com os dados informados, uma oportunidade matemática clara nesses parâmetros.`;
+    } e sua taxa Lead → Visita (${formatPercent(current.leadToVisit)}) já estão dentro do cenário de referência utilizado nesta simulação (${formatBRL(referenceCPL)} de CPL e ${formatPercent(referenceLeadToVisit, 0)} de Lead → Visita). Sua taxa geral de Lead → Venda hoje é ${formatPercent(current.leadToSale, 1)}${leadToSaleOk ? ", também acima do parâmetro de referência de " + formatPercent(referenceLeadToSale, 0) : ` (parâmetro de referência: ${formatPercent(referenceLeadToSale, 0)})`}. Não identificamos, com os dados informados, uma oportunidade matemática clara nesses parâmetros.`;
   } else {
     diagnosticText =
       "Com base nos dados informados, os cenários simulados (mesma aquisição com conversão de referência, e aquisição normalizada com conversão de referência) não produzem uma estimativa de VGV superior ao seu cenário atual.";
