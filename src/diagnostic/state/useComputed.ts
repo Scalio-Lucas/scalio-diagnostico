@@ -1,58 +1,65 @@
 import { useMemo } from "react";
-import { SCENARIOS, SIMULATOR_ABSOLUTE_CEILING, SIMULATOR_DEFAULT_CEILING } from "../config";
-import { buildDiagnostic, pickInitialScenario } from "../engine/diagnosticEngine";
-import { computeCurrentMetrics } from "../engine/metrics";
-import { analyzeOpportunities, buildStageComparison } from "../engine/opportunityEngine";
-import { computeProjection } from "../engine/scenarios";
-import type { FunnelInputs, ScenarioKey } from "../engine/types";
+import { DIAGNOSTIC_CONFIG } from "../config";
+import { buildDiagnostic } from "../engine/diagnosticEngine";
+import {
+  analyzeOpportunity,
+  assertReferenceLeadsConsistency,
+  calculateCurrentScenario,
+  calculateReferenceScenario,
+} from "../engine/scenarioEngine";
+import type { FunnelInputs } from "../engine/types";
 import { useDiagnostic } from "./DiagnosticContext";
 
-/** Pipeline completo Input -> Metrics -> Opportunity -> Diagnostic, memoizado. */
-export function useDiagnosticComputation(overrideRate?: number) {
+/** Pipeline completo Input -> Scenario Engine -> Diagnostic, memoizado. */
+export function useDiagnosticComputation() {
   const { state } = useDiagnostic();
-  return useComputationFor(state.inputs, overrideRate);
+  return useComputationFor(state.inputs);
 }
 
-export function useComputationFor(inputs: FunnelInputs, overrideRate?: number) {
+export function useComputationFor(inputs: FunnelInputs) {
   return useMemo(() => {
-    const current = computeCurrentMetrics(inputs);
+    const current = calculateCurrentScenario(inputs);
 
-    // Scenario Engine — cenário de referência SEMPRE recalculado a partir do
-    // investimento e dos parâmetros de DIAGNOSTIC_CONFIG, nunca do volume
-    // atual de leads (regra absoluta: nunca copiar leads atuais).
-    const opportunities = analyzeOpportunities(inputs, current);
-    const comparison = buildStageComparison(inputs, current, opportunities);
-    const diagnostic = buildDiagnostic(current, opportunities);
+    const {
+      qualifiedLeadCPL,
+      leadToVisitRate,
+      leadToSaleRateMin,
+      leadToSaleRateBase,
+      leadToSaleRateMax,
+    } = DIAGNOSTIC_CONFIG;
 
-    // Simulador compacto (BLOCO 3 / "Ver diagnóstico completo") continua
-    // simulando especificamente Lead→Visita, como já aprovado — independente
-    // de qual etapa o Opportunity Engine aponta como gargalo principal.
-    const initialScenario: ScenarioKey = pickInitialScenario(current);
-    const rate =
-      overrideRate ??
-      SCENARIOS[initialScenario === "custom" ? "potential" : initialScenario].leadToVisit;
-    const projected = computeProjection(
-      inputs,
+    // As três chamadas usam a MESMA função (calculateReferenceScenario) e o
+    // MESMO cpl/leadToVisit — só o leadToSale varia. Nenhuma fórmula de faixa
+    // separada existe em lugar nenhum do código.
+    const referenceBase = calculateReferenceScenario(inputs, {
+      cpl: qualifiedLeadCPL,
+      leadToVisit: leadToVisitRate,
+      leadToSale: leadToSaleRateBase,
+    });
+    const referenceMin = calculateReferenceScenario(inputs, {
+      cpl: qualifiedLeadCPL,
+      leadToVisit: leadToVisitRate,
+      leadToSale: leadToSaleRateMin,
+    });
+    const referenceMax = calculateReferenceScenario(inputs, {
+      cpl: qualifiedLeadCPL,
+      leadToVisit: leadToVisitRate,
+      leadToSale: leadToSaleRateMax,
+    });
+
+    if (inputs.investment > 0) {
+      assertReferenceLeadsConsistency(inputs.investment, qualifiedLeadCPL, referenceBase.leads);
+    }
+
+    const opportunity = analyzeOpportunity(inputs, current, referenceBase);
+    const diagnostic = buildDiagnostic(
       current,
-      rate,
-      overrideRate !== undefined ? "custom" : initialScenario,
+      referenceBase,
+      referenceMin,
+      referenceMax,
+      opportunity,
     );
 
-    const simulatorMin = current.leadToVisit;
-    const simulatorMax = Math.min(
-      Math.max(SIMULATOR_DEFAULT_CEILING, current.leadToVisit + 0.05),
-      SIMULATOR_ABSOLUTE_CEILING,
-    );
-
-    return {
-      current,
-      opportunities,
-      comparison,
-      diagnostic,
-      projected,
-      initialScenario,
-      simulatorMin,
-      simulatorMax,
-    };
-  }, [inputs, overrideRate]);
+    return { current, referenceBase, referenceMin, referenceMax, opportunity, diagnostic };
+  }, [inputs]);
 }

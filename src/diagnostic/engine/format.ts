@@ -21,6 +21,18 @@ export function formatBRL(value: number): string {
   return brlFormatter.format(safeNumber(value));
 }
 
+const brlDecimalFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/** Para valores pequenos (ex.: CPL) onde arredondar para reais inteiros perde a informação. */
+export function formatBRLDecimal(value: number): string {
+  return brlDecimalFormatter.format(safeNumber(value));
+}
+
 /** "R$ 500 mil", "R$ 1,5 mi", "R$ 3,2 mi" — para números grandes em destaque visual. */
 export function formatBRLAbbrev(value: number): string {
   const v = safeNumber(value);

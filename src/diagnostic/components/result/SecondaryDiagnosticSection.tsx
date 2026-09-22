@@ -4,43 +4,33 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import type {
-  CurrentMetrics,
-  Diagnostic,
-  FunnelInputs,
-  OpportunityAnalysis,
-  ProjectedMetrics,
-} from "../../engine/types";
+import type { Diagnostic, FunnelInputs, Scenario } from "../../engine/types";
 import { DiagnosticDetailsRows } from "./DiagnosticDetailsRows";
-import { SimulatorPanel } from "./SimulatorPanel";
 
 interface SecondaryDiagnosticSectionProps {
   diagnostic: Diagnostic;
   inputs: FunnelInputs;
-  current: CurrentMetrics;
-  opportunities: OpportunityAnalysis;
-  projected: ProjectedMetrics;
-  simulatorRate: number;
-  simulatorMin: number;
-  simulatorMax: number;
-  onSimulatorChange: (rate: number) => void;
+  current: Scenario;
+  referenceBase: Scenario;
+  referenceMin: Scenario;
+  referenceMax: Scenario;
 }
 
 /**
- * "Ver meu diagnóstico completo" — o simulador, os custos/receitas e a leitura
- * dinâmica do motor deixam de disputar espaço com o CTA e viram uma consulta
- * opcional, fechada por padrão.
+ * "Ver meu diagnóstico completo" — a cadeia completa Hoje × Cenário de
+ * referência, mais a leitura dinâmica do motor. O antigo simulador de
+ * Lead→Visita foi removido: ele recalculava visitas/vendas a partir dos
+ * leads ATUAIS e da Visita→Venda histórica, produzindo números incoerentes
+ * com o cenário de referência mostrado logo abaixo. Preferimos remover a
+ * interação a apresentar matemática incoerente.
  */
 export function SecondaryDiagnosticSection({
   diagnostic,
   inputs,
   current,
-  opportunities,
-  projected,
-  simulatorRate,
-  simulatorMin,
-  simulatorMax,
-  onSimulatorChange,
+  referenceBase,
+  referenceMin,
+  referenceMax,
 }: SecondaryDiagnosticSectionProps) {
   return (
     <Accordion type="single" collapsible className="w-full">
@@ -50,21 +40,12 @@ export function SecondaryDiagnosticSection({
         </AccordionTrigger>
         <AccordionContent>
           <div className="space-y-5">
-            <SimulatorPanel
-              rate={simulatorRate}
-              min={simulatorMin}
-              max={simulatorMax}
-              currentRate={current.leadToVisit}
-              onChange={onSimulatorChange}
-              visitsPotential={projected.visitsPotential}
-              salesPotential={projected.salesPotential}
-              vgvPotential={projected.vgvPotential}
-            />
-
             <DiagnosticDetailsRows
               inputs={inputs}
               current={current}
-              opportunities={opportunities}
+              referenceBase={referenceBase}
+              referenceMin={referenceMin}
+              referenceMax={referenceMax}
             />
 
             {diagnostic.diagnosticText ? (

@@ -11,34 +11,25 @@ import { ScenarioCard } from "./ScenarioCard";
 import { SecondaryDiagnosticSection } from "./SecondaryDiagnosticSection";
 
 export function ResultDashboard() {
-  const { state, setSimulatorRate, restart } = useDiagnostic();
+  const { state, restart } = useDiagnostic();
   const { inputs } = state;
 
-  const base = useComputationFor(inputs);
+  const { current, referenceBase, referenceMin, referenceMax, diagnostic } =
+    useComputationFor(inputs);
+  const hasReference = inputs.investment > 0;
 
   useEffect(() => {
-    if (state.simulatorRate === null) {
-      setSimulatorRate(base.projected.leadToVisitProjected);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.simulatorRate]);
-
-  useEffect(() => {
-    if (base.projected.hasProjectableSales) {
-      submitDiagnostic(buildDiagnosticRecord(inputs, base.current, base.projected));
+    if (current.sales > 0) {
+      submitDiagnostic(buildDiagnosticRecord(inputs, current, referenceBase));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const simulatorRate = state.simulatorRate ?? base.projected.leadToVisitProjected;
-  const live = useComputationFor(inputs, simulatorRate);
-  const { current, opportunities, comparison, diagnostic } = live;
 
   // O Scenario Engine só não consegue montar um cenário de referência quando
   // não há investimento informado (não dá para calcular investimento÷CPL).
   // Fora esse caso, a comparação Hoje×Referência está sempre disponível,
   // mesmo sem visitas ou vendas históricas.
-  if (!comparison) {
+  if (!hasReference) {
     return (
       <div className="mx-auto max-w-md px-5 pb-16">
         <DiagnosisHero diagnostic={diagnostic} />
@@ -46,12 +37,12 @@ export function ResultDashboard() {
         <div className="mt-8">
           <ScenarioCard
             label="Hoje"
-            leads={inputs.leads}
-            visitsValue={formatInt(inputs.visits)}
-            visitsCaption={pluralize(inputs.visits, "visita", "visitas")}
+            leads={current.leads}
+            visitsValue={formatInt(current.visits)}
+            visitsCaption={pluralize(current.visits, "visita", "visitas")}
             leadToVisitRate={current.leadToVisit}
-            salesValue={formatInt(inputs.sales)}
-            salesCaption={pluralize(inputs.sales, "venda", "vendas")}
+            salesValue={formatInt(current.sales)}
+            salesCaption={pluralize(current.sales, "venda", "vendas")}
             visitToSaleRate={current.visitToSale}
             vgv={current.vgv}
             vgvCaption="VGV"
@@ -68,12 +59,9 @@ export function ResultDashboard() {
             diagnostic={diagnostic}
             inputs={inputs}
             current={current}
-            opportunities={opportunities}
-            projected={live.projected}
-            simulatorRate={simulatorRate}
-            simulatorMin={live.simulatorMin}
-            simulatorMax={live.simulatorMax}
-            onSimulatorChange={setSimulatorRate}
+            referenceBase={referenceBase}
+            referenceMin={referenceMin}
+            referenceMax={referenceMax}
           />
           <HowWeCalculate />
         </div>
@@ -90,7 +78,7 @@ export function ResultDashboard() {
 
       {/* BLOCO 2 — Hoje × Cenário de referência */}
       <div className="mt-10">
-        <ImpactComparison comparison={comparison} diagnostic={diagnostic} />
+        <ImpactComparison current={current} reference={referenceBase} diagnostic={diagnostic} />
       </div>
 
       <ArrowDivider />
@@ -104,12 +92,9 @@ export function ResultDashboard() {
           diagnostic={diagnostic}
           inputs={inputs}
           current={current}
-          opportunities={opportunities}
-          projected={live.projected}
-          simulatorRate={simulatorRate}
-          simulatorMin={live.simulatorMin}
-          simulatorMax={live.simulatorMax}
-          onSimulatorChange={setSimulatorRate}
+          referenceBase={referenceBase}
+          referenceMin={referenceMin}
+          referenceMax={referenceMax}
         />
         <HowWeCalculate />
       </div>

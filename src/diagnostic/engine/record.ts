@@ -1,14 +1,14 @@
-import type { CurrentMetrics, DiagnosticRecord, FunnelInputs, ProjectedMetrics } from "./types";
+import type { DiagnosticRecord, FunnelInputs, Scenario } from "./types";
 
 /**
- * Monta o payload persistível do diagnóstico (seção 42). Hoje só é salvo
- * localmente; a mesma função pode alimentar um webhook/CRM no futuro sem
- * mudar o motor de cálculo.
+ * Monta o payload persistível do diagnóstico. Hoje só é salvo localmente; a
+ * mesma função pode alimentar um webhook/CRM no futuro sem mudar o motor de
+ * cálculo.
  */
 export function buildDiagnosticRecord(
   inputs: FunnelInputs,
-  current: CurrentMetrics,
-  projected: ProjectedMetrics,
+  current: Scenario,
+  referenceBase: Scenario,
 ): DiagnosticRecord {
   return {
     investment: inputs.investment,
@@ -17,22 +17,18 @@ export function buildDiagnosticRecord(
     sales: inputs.sales,
     ticket: inputs.ticket,
     commission: inputs.commission,
-    cpl: current.cpl,
-    costPerVisit: current.costPerVisit,
-    costPerSale: current.costPerSale,
-    leadToVisitPct: current.leadToVisitPct,
-    visitToSalePct: current.visitToSalePct,
-    leadToSalePct: current.leadToSalePct,
-    vgvAtual: current.vgv,
-    receitaAtual: current.revenue,
-    cenarioUtilizado: projected.scenario,
-    taxaProjetada: projected.leadToVisitProjected,
-    visitasPotenciais: projected.visitsPotential,
-    vendasPotenciais: projected.salesPotential,
-    vgvPotencial: projected.vgvPotential,
-    diferencaVGV: projected.opportunityVGV,
-    receitaPotencial: projected.revenuePotential,
-    diferencaReceita: projected.opportunityRevenue,
+    currentCpl: current.cpl,
+    currentLeadToVisitPct: current.leadToVisit * 100,
+    currentVisitToSalePct: current.visitToSale * 100,
+    currentLeadToSalePct: current.leadToSale * 100,
+    currentVgv: current.vgv,
+    currentRevenue: current.vgv * (inputs.commission / 100),
+    referenceCpl: referenceBase.cpl,
+    referenceLeads: referenceBase.leads,
+    referenceVisits: referenceBase.visits,
+    referenceSales: referenceBase.sales,
+    referenceVgv: referenceBase.vgv,
+    opportunityVGV: Math.max(referenceBase.vgv - current.vgv, 0),
     dataHora: new Date().toISOString(),
   };
 }

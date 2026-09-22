@@ -16,44 +16,28 @@ export interface FunnelInputs {
   commission: number;
 }
 
-export interface CurrentMetrics {
+/**
+ * Formato ÚNICO usado tanto pelo cenário atual quanto pelo cenário de
+ * referência. Toda a interface consome exclusivamente objetos deste tipo —
+ * nenhum componente reconstrói nenhuma dessas fórmulas por conta própria.
+ */
+export interface Scenario {
+  investment: number;
+  cpl: number;
+  leads: number;
+  leadToVisit: number;
+  visits: number;
+  leadToSale: number;
+  sales: number;
+  visitToSale: number;
+  vgv: number;
+}
+
+/** Parâmetros que definem um cenário de referência — sempre os mesmos entre min/base/max, exceto `leadToSale`. */
+export interface ReferenceParams {
   cpl: number;
   leadToVisit: number;
-  leadToVisitPct: number;
-  visitToSale: number;
-  visitToSalePct: number;
   leadToSale: number;
-  leadToSalePct: number;
-  costPerVisit: number;
-  costPerSale: number;
-  vgv: number;
-  revenue: number;
-  hasLeads: boolean;
-  hasVisits: boolean;
-  hasSales: boolean;
-}
-
-export type ScenarioKey = "conservative" | "potential" | "highEfficiency" | "custom";
-
-export interface ScenarioDefinition {
-  key: ScenarioKey;
-  label: string;
-  leadToVisit: number;
-}
-
-export interface ProjectedMetrics {
-  scenario: ScenarioKey;
-  leadToVisitInput: number;
-  leadToVisitProjected: number;
-  wasCappedByCurrent: boolean;
-  visitsPotential: number;
-  visitToSale: number;
-  salesPotential: number;
-  hasProjectableSales: boolean;
-  vgvPotential: number;
-  revenuePotential: number;
-  opportunityVGV: number;
-  opportunityRevenue: number;
 }
 
 /** Como o CPL atual se compara ao CPL de referência configurado. */
@@ -66,40 +50,8 @@ export type DiagnosticType = "no_investment" | "opportunity" | "near_reference" 
 /** Qual eixo do funil o texto do diagnóstico deve destacar. */
 export type PrimaryFocus = "acquisition" | "conversion" | "both" | "none";
 
-export interface FunnelSnapshot {
-  leads: number;
-  visits: number;
-  sales: number;
-  vgv: number;
-}
-
-/**
- * Cenário de referência — SEMPRE recalculado a partir do investimento e dos
- * parâmetros de `DIAGNOSTIC_CONFIG`, nunca a partir do volume atual de leads.
- * `visits`/`sales*` usam a taxa de referência diretamente (Lead→Venda não
- * depende da Visita→Venda histórica do cliente).
- */
-export interface ReferenceScenario {
-  cpl: number;
-  leads: number;
-  leadToVisit: number;
-  visits: number;
-  /** Visita→Venda implícita nas referências (leadToSaleRateBase / leadToVisitRate) — só para exibição coerente. */
-  impliedVisitToSale: number;
-  leadToSaleMin: number;
-  leadToSaleBase: number;
-  leadToSaleMax: number;
-  salesMin: number;
-  salesBase: number;
-  salesMax: number;
-  vgvMin: number;
-  vgvBase: number;
-  vgvMax: number;
-}
-
-/** Saída do Scenario Engine — cenário de referência + veredito honesto. */
-export interface OpportunityAnalysis {
-  reference: ReferenceScenario;
+/** Veredito da comparação Hoje × Cenário de referência (base) — não recalcula nada. */
+export interface Opportunity {
   acquisitionStatus: AcquisitionStatus;
   leadToVisitOk: boolean;
   leadToSaleOk: boolean;
@@ -109,21 +61,6 @@ export interface OpportunityAnalysis {
   diagnosticType: DiagnosticType;
 }
 
-/** Comparação Hoje × Cenário de referência pronta para o BLOCO 2. */
-export interface StageComparison {
-  today: FunnelSnapshot;
-  scenario: FunnelSnapshot;
-  leadToVisitToday: number;
-  leadToVisitScenario: number;
-  visitToSaleToday: number;
-  visitToSaleScenario: number;
-  opportunityVGV: number;
-  /** CPL é sempre a métrica em destaque no conector — quem muda o volume agora. */
-  primaryMetricKind: "currency" | "percent";
-  primaryMetricToday: number;
-  primaryMetricScenario: number;
-}
-
 export interface Diagnostic {
   diagnosticType: DiagnosticType;
   primaryFocus: PrimaryFocus;
@@ -131,7 +68,7 @@ export interface Diagnostic {
   opportunityVGV: number;
   /** Linha de fallback do BLOCO 1 quando não há oportunidade a destacar. */
   subheadline: string;
-  /** "Mantendo seu investimento atual." — o que fica constante na simulação. */
+  /** O que fica constante/recalculado na simulação — linha curta do BLOCO 1. */
   constantLine: string;
   /** Linha de contexto dinâmica do BLOCO 1. */
   contextLine: string;
@@ -148,21 +85,17 @@ export interface DiagnosticRecord {
   sales: number;
   ticket: number;
   commission: number;
-  cpl: number;
-  costPerVisit: number;
-  costPerSale: number;
-  leadToVisitPct: number;
-  visitToSalePct: number;
-  leadToSalePct: number;
-  vgvAtual: number;
-  receitaAtual: number;
-  cenarioUtilizado: ScenarioKey;
-  taxaProjetada: number;
-  visitasPotenciais: number;
-  vendasPotenciais: number;
-  vgvPotencial: number;
-  diferencaVGV: number;
-  receitaPotencial: number;
-  diferencaReceita: number;
+  currentCpl: number;
+  currentLeadToVisitPct: number;
+  currentVisitToSalePct: number;
+  currentLeadToSalePct: number;
+  currentVgv: number;
+  currentRevenue: number;
+  referenceCpl: number;
+  referenceLeads: number;
+  referenceVisits: number;
+  referenceSales: number;
+  referenceVgv: number;
+  opportunityVGV: number;
   dataHora: string;
 }

@@ -1,24 +1,3 @@
-import type { ScenarioDefinition, ScenarioKey } from "./engine/types";
-
-// Parâmetros do simulador de Lead→Visita em "Ver diagnóstico completo"
-// (BLOCO 3) — ferramenta de exploração independente do motor de diagnóstico
-// principal abaixo. NÃO são benchmarks garantidos de mercado.
-export const SCENARIOS: Record<Exclude<ScenarioKey, "custom">, ScenarioDefinition> = {
-  conservative: { key: "conservative", label: "Conservador", leadToVisit: 0.1 },
-  potential: { key: "potential", label: "Potencial", leadToVisit: 0.2 },
-  highEfficiency: { key: "highEfficiency", label: "Alta eficiência", leadToVisit: 0.25 },
-};
-
-export const SCENARIO_ORDER: Exclude<ScenarioKey, "custom">[] = [
-  "conservative",
-  "potential",
-  "highEfficiency",
-];
-
-// Faixa livre do simulador pós-diagnóstico.
-export const SIMULATOR_DEFAULT_CEILING = 0.3;
-export const SIMULATOR_ABSOLUTE_CEILING = 0.6;
-
 /**
  * Configuração central do motor de diagnóstico — cenário de referência
  * operacional, NÃO uma média de mercado nem um resultado garantido. Toda

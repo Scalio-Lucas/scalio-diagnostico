@@ -1,45 +1,20 @@
-import {
-  formatBRL,
-  formatDecimalValue,
-  formatInt,
-  formatPercent,
-  pluralize,
-} from "../../engine/format";
-import type { Diagnostic, StageComparison } from "../../engine/types";
+import { formatBRLDecimal, formatDecimalValue, formatInt, pluralize } from "../../engine/format";
+import type { Diagnostic, Scenario } from "../../engine/types";
 import { ComparisonConnector } from "./ComparisonConnector";
 import { ScenarioCard } from "./ScenarioCard";
 
 interface ImpactComparisonProps {
-  comparison: StageComparison;
+  current: Scenario;
+  reference: Scenario;
   diagnostic: Diagnostic;
 }
 
 /**
- * BLOCO 2 — "O impacto está aqui": a história Hoje × Cenário simulado em uma
- * tacada. O título fica fixo (identidade aprovada); o resto se adapta à etapa
- * que o Opportunity Engine apontou como gargalo principal — a mesma estrutura
- * visual serve para investimento→leads, lead→visita ou visita→venda, porque
- * cada card já recebe os números prontos, sem saber de onde vieram.
+ * BLOCO 2 — "O impacto está aqui": HOJE × CENÁRIO DE REFERÊNCIA, sempre os
+ * dois mesmos objetos `Scenario` calculados uma única vez em `useComputed`.
+ * Nenhum card recalcula nada — só formata os campos que recebe.
  */
-export function ImpactComparison({ comparison, diagnostic }: ImpactComparisonProps) {
-  const {
-    today,
-    scenario,
-    leadToVisitToday,
-    leadToVisitScenario,
-    visitToSaleToday,
-    visitToSaleScenario,
-  } = comparison;
-
-  const beforeLabel =
-    comparison.primaryMetricKind === "currency"
-      ? formatBRL(comparison.primaryMetricToday)
-      : formatPercent(comparison.primaryMetricToday, 1);
-  const afterLabel =
-    comparison.primaryMetricKind === "currency"
-      ? formatBRL(comparison.primaryMetricScenario)
-      : formatPercent(comparison.primaryMetricScenario, 1);
-
+export function ImpactComparison({ current, reference, diagnostic }: ImpactComparisonProps) {
   return (
     <section>
       <h2 className="text-center font-display text-lg font-bold text-foreground sm:text-xl">
@@ -52,37 +27,37 @@ export function ImpactComparison({ comparison, diagnostic }: ImpactComparisonPro
       <div className="mt-6 grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr] md:gap-4">
         <ScenarioCard
           label="Hoje"
-          leads={today.leads}
-          visitsValue={formatInt(today.visits)}
-          visitsCaption={pluralize(today.visits, "visita", "visitas")}
-          leadToVisitRate={leadToVisitToday}
-          salesValue={formatInt(today.sales)}
-          salesCaption={pluralize(today.sales, "venda", "vendas")}
-          visitToSaleRate={visitToSaleToday}
-          vgv={today.vgv}
+          leads={current.leads}
+          visitsValue={formatInt(current.visits)}
+          visitsCaption={pluralize(current.visits, "visita", "visitas")}
+          leadToVisitRate={current.leadToVisit}
+          salesValue={formatInt(current.sales)}
+          salesCaption={pluralize(current.sales, "venda", "vendas")}
+          visitToSaleRate={current.visitToSale}
+          vgv={current.vgv}
           vgvCaption="VGV"
           accent="current"
         />
 
         <ComparisonConnector
-          beforeLabel={beforeLabel}
-          afterLabel={afterLabel}
+          beforeLabel={formatBRLDecimal(current.leads > 0 ? current.cpl : 0)}
+          afterLabel={formatBRLDecimal(reference.cpl)}
           opportunityVGV={diagnostic.opportunityVGV}
           hasOpportunity={diagnostic.hasOpportunity}
-          currentVGV={today.vgv}
-          potentialVGV={scenario.vgv}
+          currentVGV={current.vgv}
+          potentialVGV={reference.vgv}
         />
 
         <ScenarioCard
-          label="Cenário simulado"
-          leads={scenario.leads}
-          visitsValue={formatDecimalValue(scenario.visits)}
-          visitsCaption={estimatedCaption(scenario.visits, today.visits, "visita", "visitas")}
-          leadToVisitRate={leadToVisitScenario}
-          salesValue={formatDecimalValue(scenario.sales)}
-          salesCaption={estimatedCaption(scenario.sales, today.sales, "venda", "vendas")}
-          visitToSaleRate={visitToSaleScenario}
-          vgv={scenario.vgv}
+          label="Cenário de referência"
+          leads={reference.leads}
+          visitsValue={formatDecimalValue(reference.visits)}
+          visitsCaption={estimatedCaption(reference.visits, current.visits, "visita", "visitas")}
+          leadToVisitRate={reference.leadToVisit}
+          salesValue={formatDecimalValue(reference.sales)}
+          salesCaption={estimatedCaption(reference.sales, current.sales, "venda", "vendas")}
+          visitToSaleRate={reference.visitToSale}
+          vgv={reference.vgv}
           vgvCaption="VGV potencial"
           accent="potential"
         />

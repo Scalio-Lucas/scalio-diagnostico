@@ -9,7 +9,6 @@ interface DiagnosticState {
   inputs: FunnelInputs;
   step: number; // 0..TOTAL_QUESTIONS-1
   phase: Phase;
-  simulatorRate: number | null; // null = ainda não inicializado a partir do diagnóstico
 }
 
 type Action =
@@ -18,7 +17,6 @@ type Action =
   | { type: "PREV_STEP" }
   | { type: "GO_TO_PROCESSING" }
   | { type: "GO_TO_RESULT" }
-  | { type: "SET_SIMULATOR_RATE"; value: number }
   | { type: "RESTART" };
 
 const STORAGE_KEY = "scalio-diagnostic-inputs-v1";
@@ -47,7 +45,6 @@ function initState(): DiagnosticState {
     inputs: loadPersistedInputs(),
     step: 0,
     phase: "questions",
-    simulatorRate: null,
   };
 }
 
@@ -66,11 +63,9 @@ function reducer(state: DiagnosticState, action: Action): DiagnosticState {
       return { ...state, phase: "processing" };
     case "GO_TO_RESULT":
       return { ...state, phase: "result" };
-    case "SET_SIMULATOR_RATE":
-      return { ...state, simulatorRate: action.value };
     case "RESTART":
       persistInputs(DEFAULT_INPUTS);
-      return { inputs: DEFAULT_INPUTS, step: 0, phase: "questions", simulatorRate: null };
+      return { inputs: DEFAULT_INPUTS, step: 0, phase: "questions" };
     default:
       return state;
   }
@@ -83,7 +78,6 @@ interface DiagnosticContextValue {
   prevStep: () => void;
   goToProcessing: () => void;
   goToResult: () => void;
-  setSimulatorRate: (value: number) => void;
   restart: () => void;
 }
 
@@ -100,7 +94,6 @@ export function DiagnosticProvider({ children }: { children: ReactNode }) {
       prevStep: () => dispatch({ type: "PREV_STEP" }),
       goToProcessing: () => dispatch({ type: "GO_TO_PROCESSING" }),
       goToResult: () => dispatch({ type: "GO_TO_RESULT" }),
-      setSimulatorRate: (value) => dispatch({ type: "SET_SIMULATOR_RATE", value }),
       restart: () => dispatch({ type: "RESTART" }),
     }),
     [state],

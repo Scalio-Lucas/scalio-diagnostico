@@ -1,26 +1,37 @@
 import { DIAGNOSTIC_CONFIG } from "../../config";
-import { formatBRL, formatBRLAbbrev, formatDecimalValue, formatPercent } from "../../engine/format";
-import type { CurrentMetrics, FunnelInputs, OpportunityAnalysis } from "../../engine/types";
+import {
+  formatBRL,
+  formatBRLAbbrev,
+  formatBRLDecimal,
+  formatDecimalValue,
+  formatPercent,
+} from "../../engine/format";
+import type { FunnelInputs, Scenario } from "../../engine/types";
 
 interface DiagnosticDetailsRowsProps {
   inputs: FunnelInputs;
-  current: CurrentMetrics;
-  opportunities: OpportunityAnalysis;
+  current: Scenario;
+  referenceBase: Scenario;
+  referenceMin: Scenario;
+  referenceMax: Scenario;
 }
 
 /**
  * Mostra a cadeia completa (Investimento→CPL→Leads→Lead→Visita→Visitas→
  * Lead→Venda→Vendas→VGV) do cenário atual e do cenário de referência, mais a
  * faixa mínimo/base/máximo de Lead→Venda — para não esconder de onde vem
- * nenhum número. A comissão nunca aparece como possível gargalo, só como
- * variável financeira na receita bruta estimada.
+ * nenhum número. Só existem DUAS bases aqui (atual e referência); nunca um
+ * terceiro cenário misto. A comissão nunca aparece como possível gargalo, só
+ * como variável financeira na receita bruta estimada.
  */
 export function DiagnosticDetailsRows({
   inputs,
   current,
-  opportunities,
+  referenceBase,
+  referenceMin,
+  referenceMax,
 }: DiagnosticDetailsRowsProps) {
-  const { reference } = opportunities;
+  const hasReference = inputs.investment > 0;
   const {
     qualifiedLeadCPL,
     leadToVisitRate,
@@ -29,35 +40,43 @@ export function DiagnosticDetailsRows({
     leadToSaleRateMax,
   } = DIAGNOSTIC_CONFIG;
 
+  const currentRevenue = current.vgv * (inputs.commission / 100);
+  const referenceRevenue = referenceBase.vgv * (inputs.commission / 100);
+  const costPerVisit = current.visits > 0 ? current.investment / current.visits : null;
+  const costPerSale = current.sales > 0 ? current.investment / current.sales : null;
+
   return (
     <div className="space-y-4">
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Cenário atual
         </p>
-        <Row label="Investimento" value={formatBRL(inputs.investment)} />
-        <Row label="CPL" value={current.hasLeads ? formatBRL(current.cpl) : "não calculável"} />
-        <Row label="Leads" value={formatDecimalValue(inputs.leads)} />
+        <Row label="Investimento" value={formatBRL(current.investment)} />
+        <Row
+          label="CPL"
+          value={current.leads > 0 ? formatBRLDecimal(current.cpl) : "não calculável"}
+        />
+        <Row label="Leads" value={formatDecimalValue(current.leads)} />
         <Row label="Lead → Visita" value={formatPercent(current.leadToVisit, 1)} />
-        <Row label="Visitas" value={formatDecimalValue(inputs.visits)} />
+        <Row label="Visitas" value={formatDecimalValue(current.visits)} />
         <Row label="Lead → Venda" value={formatPercent(current.leadToSale, 2)} />
-        <Row label="Vendas" value={formatDecimalValue(inputs.sales)} />
+        <Row label="Vendas" value={formatDecimalValue(current.sales)} />
         <Row label="VGV" value={formatBRLAbbrev(current.vgv)} />
       </div>
 
-      {opportunities.diagnosticType !== "no_investment" ? (
+      {hasReference ? (
         <div className="border-t border-[color:var(--color-border)] pt-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--electric-bright)]">
             Cenário de referência
           </p>
-          <Row label="Mesmo investimento" value={formatBRL(inputs.investment)} />
-          <Row label="CPL utilizado" value={formatBRL(reference.cpl)} />
-          <Row label="Leads projetados" value={formatDecimalValue(reference.leads)} />
-          <Row label="Lead → Visita" value={formatPercent(reference.leadToVisit, 0)} />
-          <Row label="Visitas projetadas" value={formatDecimalValue(reference.visits)} />
+          <Row label="Mesmo investimento" value={formatBRL(referenceBase.investment)} />
+          <Row label="CPL utilizado" value={formatBRLDecimal(referenceBase.cpl)} />
+          <Row label="Leads projetados" value={formatDecimalValue(referenceBase.leads)} />
+          <Row label="Lead → Visita" value={formatPercent(referenceBase.leadToVisit, 0)} />
+          <Row label="Visitas projetadas" value={formatDecimalValue(referenceBase.visits)} />
           <Row label="Lead → Venda (base)" value={formatPercent(leadToSaleRateBase, 0)} />
-          <Row label="Vendas esperadas" value={formatDecimalValue(reference.salesBase)} />
-          <Row label="VGV esperado" value={formatBRLAbbrev(reference.vgvBase)} highlight />
+          <Row label="Vendas esperadas" value={formatDecimalValue(referenceBase.sales)} />
+          <Row label="VGV esperado" value={formatBRLAbbrev(referenceBase.vgv)} highlight />
 
           <p className="mb-1 mt-4 text-xs text-muted-foreground">
             Considerando uma conversão Lead → Venda entre {formatPercent(leadToSaleRateMin, 0)} e{" "}
@@ -66,18 +85,18 @@ export function DiagnosticDetailsRows({
           <div className="grid grid-cols-3 gap-2 rounded-xl bg-black/15 p-3">
             <RangeStat
               label={`Mínimo (${formatPercent(leadToSaleRateMin, 0)})`}
-              sales={reference.salesMin}
-              vgv={reference.vgvMin}
+              sales={referenceMin.sales}
+              vgv={referenceMin.vgv}
             />
             <RangeStat
               label={`Base (${formatPercent(leadToSaleRateBase, 0)})`}
-              sales={reference.salesBase}
-              vgv={reference.vgvBase}
+              sales={referenceBase.sales}
+              vgv={referenceBase.vgv}
             />
             <RangeStat
               label={`Máximo (${formatPercent(leadToSaleRateMax, 0)})`}
-              sales={reference.salesMax}
-              vgv={reference.vgvMax}
+              sales={referenceMax.sales}
+              vgv={referenceMax.vgv}
             />
           </div>
         </div>
@@ -85,11 +104,11 @@ export function DiagnosticDetailsRows({
 
       <div className="border-t border-[color:var(--color-border)] pt-4">
         <Row label="Ticket médio" value={formatBRL(inputs.ticket)} />
-        <Row label="Receita bruta estimada atual" value={formatBRLAbbrev(current.revenue)} />
-        {opportunities.diagnosticType !== "no_investment" ? (
+        <Row label="Receita bruta estimada atual" value={formatBRLAbbrev(currentRevenue)} />
+        {hasReference ? (
           <Row
             label="Receita bruta estimada no cenário de referência"
-            value={formatBRLAbbrev(reference.vgvBase * (inputs.commission / 100))}
+            value={formatBRLAbbrev(referenceRevenue)}
           />
         ) : null}
       </div>
@@ -97,15 +116,15 @@ export function DiagnosticDetailsRows({
       <div className="border-t border-[color:var(--color-border)] pt-4">
         <Row
           label="Custo por lead (CPL)"
-          value={current.hasLeads ? formatBRL(current.cpl) : "não calculável"}
+          value={current.leads > 0 ? formatBRLDecimal(current.cpl) : "não calculável"}
         />
         <Row
           label="Custo por visita"
-          value={current.hasVisits ? formatBRL(current.costPerVisit) : "não calculável"}
+          value={costPerVisit !== null ? formatBRL(costPerVisit) : "não calculável"}
         />
         <Row
           label="Custo de mídia por venda"
-          value={current.hasSales ? formatBRL(current.costPerSale) : "não calculável"}
+          value={costPerSale !== null ? formatBRL(costPerSale) : "não calculável"}
         />
       </div>
 
