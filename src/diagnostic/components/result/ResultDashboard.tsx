@@ -52,7 +52,7 @@ export function ResultDashboard() {
 
         <ArrowDivider />
 
-        <CTASection />
+        <CTASection diagnostic={diagnostic} />
 
         <div className="mt-6 space-y-3">
           <SecondaryDiagnosticSection
@@ -84,7 +84,7 @@ export function ResultDashboard() {
       <ArrowDivider />
 
       {/* BLOCO 3 — o convite entra imediatamente após a comparação */}
-      <CTASection />
+      <CTASection diagnostic={diagnostic} />
 
       {/* Informações secundárias — fechadas por padrão, a página "termina" no CTA */}
       <div className="mt-8 space-y-3">

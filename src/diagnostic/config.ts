@@ -25,11 +25,7 @@ export const CPL_NEAR_TOLERANCE = 0.15;
 // relevante" em vez de forçar uma leitura de oportunidade ou de perda.
 export const VGV_NEAR_TOLERANCE = 0.05;
 
-export const WHATSAPP_GROUP_URL = "https://chat.whatsapp.com/Cn2VWBtUgEw0ZrIyCh2JBZ";
-
-// Data/horário da próxima aula ao vivo. Deixe em branco para ocultar essa
-// linha no CTA (ex.: enquanto a próxima turma ainda não está agendada).
-export const LIVE_CLASS_DATE = "";
-export const LIVE_CLASS_TIME = "";
+// Agenda de reunião estratégica (CTA final do diagnóstico).
+export const BOOKING_URL = "https://api.digitalscalio.com/widget/booking/pp7tvjaWGLQCSJMNZNLC";
 
 export const TOTAL_QUESTIONS = 6;
